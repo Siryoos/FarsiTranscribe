@@ -13,11 +13,11 @@ setup(
     name="farsi-transcribe",
     version="2.0.0",
     author="FarsiTranscribe Team",
-    author_email="your.email@example.com",
+    author_email="siryoosa@gmail.com",
     description="A clean, efficient, and extensible audio transcription system optimized for Persian/Farsi language",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/FarsiTranscribe",
+    url="https://github.com/siryoos/FarsiTranscribe",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -53,8 +53,8 @@ setup(
             "mypy>=1.0.0",
         ],
         "gpu": [
-            "torch>=2.0.0+cu118",
-            "torchaudio>=2.0.0+cu118",
+            # GPU dependencies require special installation
+            # Run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
         ],
     },
     entry_points={
@@ -67,9 +67,9 @@ setup(
         "farsi_transcribe": ["*.json", "*.yaml"],
     },
     project_urls={
-        "Bug Reports": "https://github.com/yourusername/FarsiTranscribe/issues",
-        "Source": "https://github.com/yourusername/FarsiTranscribe",
-        "Documentation": "https://github.com/yourusername/FarsiTranscribe/wiki",
+        "Bug Reports": "https://github.com/siryoos/FarsiTranscribe/issues",
+        "Source": "https://github.com/siryoos/FarsiTranscribe",
+        "Documentation": "https://github.com/siryoos/FarsiTranscribe/wiki",
     },
     keywords=[
         "speech-recognition",

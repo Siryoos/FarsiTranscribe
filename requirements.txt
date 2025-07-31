@@ -2,7 +2,7 @@
 # Core dependencies for Persian/Farsi audio transcription
 
 # Core ML and audio processing
-openai-whisper>=20230918
+openai-whisper>=20231117
 torch>=2.0.0
 torchaudio>=2.0.0
 numpy>=1.24.0
@@ -10,6 +10,9 @@ numpy>=1.24.0
 # Audio handling
 pydub>=0.25.1
 ffmpeg-python>=0.2.0
+
+# Signal processing (for noise reduction)
+scipy>=1.9.0
 
 # Progress and utilities
 tqdm>=4.65.0

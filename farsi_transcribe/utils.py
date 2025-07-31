@@ -8,7 +8,7 @@ and output formatting.
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from dataclasses import dataclass, asdict
 import re
 

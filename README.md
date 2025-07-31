@@ -40,7 +40,7 @@ A clean, efficient, and extensible audio transcription system optimized for Pers
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/FarsiTranscribe.git
+git clone https://github.com/siryoos/FarsiTranscribe.git
 cd FarsiTranscribe
 
 # Create virtual environment
@@ -52,6 +52,9 @@ pip install -r requirements.txt
 
 # Install the package
 pip install -e .
+
+# For GPU support (optional)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 ```
 
 ### Install FFmpeg

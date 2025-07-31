@@ -244,15 +244,9 @@ def main():
         description="Clean up FarsiTranscribe project structure"
     )
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=True,
-        help="Show what would be deleted without actually deleting (default)"
-    )
-    parser.add_argument(
         "--execute",
         action="store_true",
-        help="Actually perform the cleanup"
+        help="Actually perform the cleanup (without this flag, runs in dry-run mode)"
     )
     parser.add_argument(
         "--force",

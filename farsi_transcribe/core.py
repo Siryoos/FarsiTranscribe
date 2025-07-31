@@ -155,6 +155,9 @@ class FarsiTranscriber:
         """
         Transcribe audio using streaming approach for large files.
         
+        Note: Currently loads the entire file to extract metadata. True streaming
+        with metadata extraction from file headers is planned for future versions.
+        
         Args:
             audio_path: Path to the audio file
             
@@ -163,6 +166,23 @@ class FarsiTranscriber:
         """
         start_time = time.time()
         chunk_results = []
+        audio_path = Path(audio_path)
+        
+        # Extract basic metadata without loading full audio
+        # For now, we get basic info from file
+        audio_metadata = {
+            'original_file': str(audio_path),
+            'format': audio_path.suffix
+        }
+        
+        # Try to get duration without loading full file
+        try:
+            from pydub.utils import mediainfo
+            info = mediainfo(str(audio_path))
+            audio_metadata['duration_seconds'] = float(info.get('duration', 0))
+        except:
+            # Fallback - we'll update duration after processing
+            audio_metadata['duration_seconds'] = 0
         
         # Stream and process chunks
         for chunk in self.audio_processor.stream_chunks(
@@ -176,8 +196,9 @@ class FarsiTranscriber:
             # Memory management
             self._manage_memory()
         
-        # Get audio metadata
-        _, audio_metadata = self.audio_processor.load_audio(audio_path)
+        # Update duration if we couldn't get it earlier
+        if audio_metadata['duration_seconds'] == 0 and chunk_results:
+            audio_metadata['duration_seconds'] = chunk_results[-1]['end_time']
         
         # Merge results
         merged_text = self._merge_results(chunk_results)

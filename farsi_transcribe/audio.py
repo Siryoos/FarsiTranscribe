@@ -6,11 +6,9 @@ This module handles audio loading, preprocessing, and chunking operations.
 
 import logging
 from pathlib import Path
-from typing import List, Tuple, Dict, Any, Optional, Iterator
+from typing import List, Tuple, Dict, Any, Iterator
 import numpy as np
 from pydub import AudioSegment
-import torch
-import torchaudio
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -174,9 +172,12 @@ class AudioProcessor:
                      chunk_duration: int,
                      overlap: int = 0) -> Iterator[AudioChunk]:
         """
-        Stream audio chunks without loading entire file into memory.
+        Stream audio chunks for processing.
         
-        This is useful for processing very large audio files.
+        Note: Currently loads the entire file for compatibility with various formats.
+        True streaming implementation with partial file reading is planned for future versions.
+        This method still provides memory benefits by yielding chunks one at a time
+        rather than creating all chunks at once.
         
         Args:
             audio_path: Path to audio file
@@ -186,13 +187,53 @@ class AudioProcessor:
         Yields:
             AudioChunk objects
         """
-        # Load audio metadata first
+        audio_path = Path(audio_path)
+        
+        if not audio_path.exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        
+        # For now, we load the full audio for format compatibility
+        # Future versions will implement true streaming with partial reads
         audio, metadata = self.load_audio(audio_path)
         
-        # Create and yield chunks
-        chunks = self.create_chunks(audio, chunk_duration, overlap)
-        for chunk in chunks:
+        # Stream chunks one at a time instead of creating all at once
+        chunk_samples = int(chunk_duration * self.sample_rate)
+        overlap_samples = int(overlap * self.sample_rate)
+        stride = chunk_samples - overlap_samples
+        
+        if stride <= 0:
+            raise ValueError("Overlap must be less than chunk duration")
+        
+        audio_length = len(audio)
+        
+        for i in range(0, audio_length, stride):
+            start_sample = i
+            end_sample = min(i + chunk_samples, audio_length)
+            
+            # Extract chunk
+            chunk_audio = audio[start_sample:end_sample]
+            
+            # Pad last chunk if necessary
+            if len(chunk_audio) < chunk_samples and i > 0:
+                padding = chunk_samples - len(chunk_audio)
+                chunk_audio = np.pad(chunk_audio, (0, padding), mode='constant')
+            
+            # Create and yield chunk
+            start_time = start_sample / self.sample_rate
+            end_time = end_sample / self.sample_rate
+            
+            chunk = AudioChunk(
+                audio=chunk_audio,
+                start_time=start_time,
+                end_time=end_time,
+                index=i // stride
+            )
+            
             yield chunk
+            
+            # Stop if we've processed all audio
+            if end_sample >= audio_length:
+                break
     
     def apply_preprocessing(self, 
                            audio: np.ndarray,
@@ -203,7 +244,7 @@ class AudioProcessor:
         
         Args:
             audio: Input audio array
-            noise_reduction: Apply basic noise reduction
+            noise_reduction: Apply basic noise reduction using spectral gating
             normalize: Normalize audio volume
             
         Returns:
@@ -211,11 +252,74 @@ class AudioProcessor:
         """
         processed = audio.copy()
         
-        # Noise reduction (simple spectral subtraction)
+        # Noise reduction using simple spectral gating
         if noise_reduction and len(processed) > 0:
-            # This is a placeholder for more sophisticated noise reduction
-            # In production, you might use specialized libraries
-            pass
+            try:
+                # Import scipy for signal processing
+                from scipy import signal
+                from scipy.fft import fft, ifft
+                
+                # Parameters for noise reduction
+                frame_length = 2048
+                hop_length = frame_length // 2
+                
+                # Estimate noise profile from first 0.5 seconds
+                noise_sample_length = int(0.5 * self.sample_rate)
+                noise_sample = processed[:min(noise_sample_length, len(processed))]
+                
+                # Compute noise spectrum
+                noise_fft = np.abs(fft(noise_sample, n=frame_length))
+                noise_profile = np.mean(noise_fft)
+                
+                # Apply spectral gating
+                n_frames = 1 + (len(processed) - frame_length) // hop_length
+                processed_frames = []
+                
+                for i in range(n_frames):
+                    start = i * hop_length
+                    end = start + frame_length
+                    
+                    if end > len(processed):
+                        frame = np.pad(processed[start:], (0, end - len(processed)))
+                    else:
+                        frame = processed[start:end]
+                    
+                    # Apply window
+                    window = signal.windows.hann(frame_length)
+                    windowed_frame = frame * window
+                    
+                    # FFT
+                    frame_fft = fft(windowed_frame)
+                    frame_magnitude = np.abs(frame_fft)
+                    frame_phase = np.angle(frame_fft)
+                    
+                    # Spectral gating
+                    mask = frame_magnitude > (noise_profile * 1.5)  # Threshold factor
+                    frame_magnitude_cleaned = frame_magnitude * mask
+                    
+                    # Reconstruct
+                    frame_fft_cleaned = frame_magnitude_cleaned * np.exp(1j * frame_phase)
+                    frame_cleaned = np.real(ifft(frame_fft_cleaned))
+                    
+                    processed_frames.append(frame_cleaned[:hop_length])
+                
+                # Overlap-add reconstruction
+                processed = np.zeros(len(audio))
+                for i, frame in enumerate(processed_frames):
+                    start = i * hop_length
+                    end = start + len(frame)
+                    if end <= len(processed):
+                        processed[start:end] += frame
+                        
+                # Smooth to reduce artifacts
+                from scipy.ndimage import gaussian_filter1d
+                processed = gaussian_filter1d(processed, sigma=2)
+                
+            except ImportError:
+                logger.warning("scipy not available for noise reduction, skipping")
+            except Exception as e:
+                logger.warning(f"Noise reduction failed: {e}, using original audio")
+                processed = audio.copy()
         
         # Normalization
         if normalize and len(processed) > 0:

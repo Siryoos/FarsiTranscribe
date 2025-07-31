@@ -56,7 +56,9 @@ class TranscriptionConfig:
     clear_cache_every: int = 10  # Clear cache every N chunks
     
     def __post_init__(self):
-        """Validate and optimize configuration after initialization."""
+        """
+        Performs post-initialization setup for the configuration, including device selection, FP16 optimization, output directory creation, and parameter validation.
+        """
         # Auto-detect device if not specified
         if self.device is None:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -73,7 +75,9 @@ class TranscriptionConfig:
         self._validate()
     
     def _validate(self):
-        """Validate configuration parameters."""
+        """
+        Checks configuration parameters for invalid values and raises ValueError if any constraints are violated.
+        """
         if self.chunk_duration <= 0:
             raise ValueError("chunk_duration must be positive")
         
@@ -90,7 +94,12 @@ class TranscriptionConfig:
             raise ValueError("temperature cannot be negative")
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert configuration to dictionary."""
+        """
+        Convert the configuration instance to a dictionary, converting any Path attributes to strings.
+        
+        Returns:
+            dict: A dictionary representation of the configuration.
+        """
         return {
             k: str(v) if isinstance(v, Path) else v 
             for k, v in self.__dict__.items()
@@ -98,7 +107,15 @@ class TranscriptionConfig:
     
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'TranscriptionConfig':
-        """Create configuration from dictionary."""
+        """
+        Create a TranscriptionConfig instance from a dictionary, converting string paths to Path objects as needed.
+        
+        Parameters:
+            config_dict (dict): Dictionary of configuration parameters.
+        
+        Returns:
+            TranscriptionConfig: A new configuration instance with values from the dictionary.
+        """
         # Convert string paths back to Path objects
         if 'output_directory' in config_dict:
             config_dict['output_directory'] = Path(config_dict['output_directory'])
@@ -115,7 +132,9 @@ class ConfigPresets:
     
     @staticmethod
     def fast() -> TranscriptionConfig:
-        """Fast transcription with smaller model and larger chunks."""
+        """
+        Return a TranscriptionConfig preset optimized for fast transcription using the base model, large chunk duration, minimal overlap, and Persian normalization enabled.
+        """
         return TranscriptionConfig(
             model_name="base",
             chunk_duration=60,
@@ -127,7 +146,13 @@ class ConfigPresets:
     
     @staticmethod
     def balanced() -> TranscriptionConfig:
-        """Balanced configuration for good quality and reasonable speed."""
+        """
+        Return a configuration preset optimized for balanced transcription quality and speed.
+        
+        Uses the "small" model with moderate chunk duration and overlap, batch size of 2, zero temperature, and Persian normalization enabled.
+        Returns:
+            TranscriptionConfig: Configuration instance with balanced settings.
+        """
         return TranscriptionConfig(
             model_name="small",
             chunk_duration=45,
@@ -139,7 +164,11 @@ class ConfigPresets:
     
     @staticmethod
     def high_quality() -> TranscriptionConfig:
-        """High quality transcription with larger model and more overlap."""
+        """
+        Return a TranscriptionConfig preset optimized for high-quality transcription.
+        
+        Uses the "medium" model with shorter chunk duration, increased overlap, single-batch processing, zero temperature, conditioning on previous text, Persian normalization, and a stricter compression ratio threshold for improved accuracy.
+        """
         return TranscriptionConfig(
             model_name="medium",
             chunk_duration=30,
@@ -153,7 +182,11 @@ class ConfigPresets:
     
     @staticmethod
     def memory_efficient() -> TranscriptionConfig:
-        """Memory-efficient configuration for systems with limited RAM."""
+        """
+        Return a TranscriptionConfig preset optimized for minimal memory usage on low-RAM systems.
+        
+        This configuration uses the "tiny" model, short chunk durations, minimal batch size, limited worker processes, and disables FP16 precision to reduce memory footprint.
+        """
         return TranscriptionConfig(
             model_name="tiny",
             chunk_duration=20,
@@ -167,7 +200,11 @@ class ConfigPresets:
     
     @staticmethod
     def persian_optimized() -> TranscriptionConfig:
-        """Configuration optimized specifically for Persian/Farsi audio."""
+        """
+        Return a TranscriptionConfig preset optimized for Persian/Farsi audio transcription.
+        
+        This configuration uses the "large-v3" model with Farsi language, moderate chunking, zero temperature, conditioning on previous text, Persian normalization enabled, diacritics retained, and adjusted quality thresholds for improved accuracy on Persian speech.
+        """
         return TranscriptionConfig(
             model_name="large-v3",
             language="fa",
@@ -183,7 +220,9 @@ class ConfigPresets:
     
     @staticmethod
     def gpu_optimized() -> TranscriptionConfig:
-        """Configuration optimized for GPU processing."""
+        """
+        Return a TranscriptionConfig preset optimized for GPU usage, with settings adjusted for large models and batch size dynamically set based on available GPU memory.
+        """
         config = TranscriptionConfig(
             model_name="large",
             chunk_duration=45,

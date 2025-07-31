@@ -20,6 +20,15 @@ class AudioChunk:
     """Represents a single audio chunk with metadata."""
     
     def __init__(self, audio: np.ndarray, start_time: float, end_time: float, index: int):
+        """
+        Initialize an AudioChunk instance representing a segment of audio with associated metadata.
+        
+        Parameters:
+            audio (np.ndarray): The audio data for this chunk.
+            start_time (float): The start time of the chunk in seconds.
+            end_time (float): The end time of the chunk in seconds.
+            index (int): The index of the chunk within the original audio.
+        """
         self.audio = audio
         self.start_time = start_time
         self.end_time = end_time
@@ -27,6 +36,9 @@ class AudioChunk:
         self.duration = end_time - start_time
     
     def __repr__(self):
+        """
+        Return a string representation of the AudioChunk showing its index and time range.
+        """
         return f"AudioChunk(index={self.index}, start={self.start_time:.1f}s, end={self.end_time:.1f}s)"
 
 
@@ -41,27 +53,27 @@ class AudioProcessor:
     
     def __init__(self, sample_rate: int = 16000):
         """
-        Initialize the audio processor.
+        Initialize an AudioProcessor with a specified target sample rate for audio processing.
         
-        Args:
-            sample_rate: Target sample rate for audio processing (default: 16000)
+        Parameters:
+            sample_rate (int): Desired sample rate in Hz. Defaults to 16000.
         """
         self.sample_rate = sample_rate
         self._supported_formats = {'.mp3', '.wav', '.m4a', '.flac', '.ogg', '.opus', '.mp4'}
     
     def load_audio(self, audio_path: Path) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
-        Load and preprocess an audio file.
+        Load an audio file, convert it to mono, normalize, resample to the target sample rate, and return the audio as a normalized numpy array along with metadata.
         
-        Args:
-            audio_path: Path to the audio file
-            
+        Parameters:
+            audio_path (Path): Path to the audio file to load.
+        
         Returns:
-            Tuple of (audio_array, metadata_dict)
-            
+            Tuple[np.ndarray, Dict[str, Any]]: A tuple containing the normalized audio array (float32, range [-1, 1]) and a metadata dictionary with duration, sample rate, number of samples, original file path, and format.
+        
         Raises:
-            ValueError: If audio format is not supported
-            FileNotFoundError: If audio file doesn't exist
+            FileNotFoundError: If the audio file does not exist.
+            ValueError: If the audio format is not supported.
         """
         audio_path = Path(audio_path)
         
@@ -114,16 +126,19 @@ class AudioProcessor:
                      chunk_duration: int, 
                      overlap: int = 0) -> List[AudioChunk]:
         """
-        Split audio into overlapping chunks.
-        
-        Args:
-            audio: Audio array
-            chunk_duration: Duration of each chunk in seconds
-            overlap: Overlap between chunks in seconds
-            
-        Returns:
-            List of AudioChunk objects
-        """
+                     Split an audio array into overlapping chunks of specified duration.
+                     
+                     Parameters:
+                         audio (np.ndarray): Input audio data as a 1D numpy array.
+                         chunk_duration (int): Length of each chunk in seconds.
+                         overlap (int, optional): Overlap between consecutive chunks in seconds. Must be less than chunk_duration.
+                     
+                     Returns:
+                         List[AudioChunk]: List of AudioChunk objects containing chunked audio data and timing metadata.
+                     
+                     Raises:
+                         ValueError: If overlap is greater than or equal to chunk_duration.
+                     """
         chunk_samples = int(chunk_duration * self.sample_rate)
         overlap_samples = int(overlap * self.sample_rate)
         stride = chunk_samples - overlap_samples
@@ -172,21 +187,23 @@ class AudioProcessor:
                      chunk_duration: int,
                      overlap: int = 0) -> Iterator[AudioChunk]:
         """
-        Stream audio chunks for processing.
-        
-        Note: Currently loads the entire file for compatibility with various formats.
-        True streaming implementation with partial file reading is planned for future versions.
-        This method still provides memory benefits by yielding chunks one at a time
-        rather than creating all chunks at once.
-        
-        Args:
-            audio_path: Path to audio file
-            chunk_duration: Duration of each chunk in seconds
-            overlap: Overlap between chunks in seconds
-            
-        Yields:
-            AudioChunk objects
-        """
+                     Yields sequential audio chunks from a file for processing, supporting optional overlap between chunks.
+                     
+                     Parameters:
+                         audio_path (Path): Path to the audio file.
+                         chunk_duration (int): Duration of each chunk in seconds.
+                         overlap (int, optional): Overlap between consecutive chunks in seconds. Defaults to 0.
+                     
+                     Yields:
+                         AudioChunk: An object containing the audio data and metadata for each chunk.
+                     
+                     Raises:
+                         FileNotFoundError: If the specified audio file does not exist.
+                         ValueError: If the overlap is greater than or equal to the chunk duration.
+                     
+                     Note:
+                         The entire audio file is loaded into memory before chunking for format compatibility. True streaming with partial file reads may be supported in future versions.
+                     """
         audio_path = Path(audio_path)
         
         if not audio_path.exists():
@@ -240,16 +257,16 @@ class AudioProcessor:
                            noise_reduction: bool = False,
                            normalize: bool = True) -> np.ndarray:
         """
-        Apply preprocessing to audio.
-        
-        Args:
-            audio: Input audio array
-            noise_reduction: Apply basic noise reduction using spectral gating
-            normalize: Normalize audio volume
-            
-        Returns:
-            Preprocessed audio array
-        """
+                           Apply optional noise reduction and normalization to an audio array.
+                           
+                           Parameters:
+                               audio (np.ndarray): Input audio array to preprocess.
+                               noise_reduction (bool): If True, applies basic spectral gating noise reduction.
+                               normalize (bool): If True, normalizes audio to have maximum absolute value of 1.
+                           
+                           Returns:
+                               np.ndarray: The preprocessed audio array.
+                           """
         processed = audio.copy()
         
         # Noise reduction using simple spectral gating
@@ -331,12 +348,12 @@ class AudioProcessor:
     
     def save_audio(self, audio: np.ndarray, output_path: Path, format: str = 'wav'):
         """
-        Save audio array to file.
+        Save a numpy audio array to a file in the specified format.
         
-        Args:
-            audio: Audio array to save
-            output_path: Output file path
-            format: Output format (default: 'wav')
+        Parameters:
+            audio (np.ndarray): Audio data as a float array in the range [-1, 1].
+            output_path (Path): Destination file path.
+            format (str): Audio file format (e.g., 'wav', 'mp3'). Defaults to 'wav'.
         """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)

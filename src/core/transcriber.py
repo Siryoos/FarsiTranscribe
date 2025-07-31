@@ -490,13 +490,6 @@ class UnifiedAudioTranscriber:
         capabilities = get_preprocessing_capabilities()
         self.logger.info(f"Preprocessing capabilities: {capabilities}")
         
-        # Initialize components
-        self.audio_processor = StandardAudioProcessor(config)
-        self.transcription_merger = TranscriptionMerger(config)
-        self.sentence_extractor = SentenceExtractor()
-        self.repetition_detector = RepetitionDetector()
-        self.streaming_processor = StreamingAudioProcessor(config)
-        
         # Setup GPU
         self._setup_gpu()
         
@@ -509,6 +502,14 @@ class UnifiedAudioTranscriber:
             self.shared_model = get_shared_model(config)
         else:
             self.shared_model = None
+        
+        # Initialize components
+        self.audio_processor = StandardAudioProcessor(config)
+        self.transcriber = StandardWhisperTranscriber(config, shared_model=self.shared_model)
+        self.transcription_merger = TranscriptionMerger(config)
+        self.sentence_extractor = SentenceExtractor()
+        self.repetition_detector = RepetitionDetector()
+        self.streaming_processor = StreamingAudioProcessor(config)
     
 
     def _prepare_audio_chunks_parallel(self, audio: AudioSegment, chunks: List[Tuple[int, int]]) -> List[np.ndarray]:

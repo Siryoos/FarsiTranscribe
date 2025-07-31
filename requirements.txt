@@ -23,6 +23,11 @@ blessed>=1.20.0
 python-bidi>=0.4.2
 arabic-reshaper>=3.0.0
 
+# Advanced Audio Processing (Optional)
+# Install with: pip install facebook-denoiser
+# facebook-denoiser>=0.1.0
+# denoiser>=0.1.1
+
 # Performance monitoring and SSL
 psutil>=5.9.0
 certifi>=2023.0.0

@@ -60,6 +60,12 @@ class TranscriptionConfig:
     enable_voice_activity_detection: bool = True
     enable_speech_enhancement: bool = True
     use_smart_chunking: bool = True
+    
+    # Advanced Preprocessing settings
+    enable_advanced_preprocessing: bool = False
+    enable_facebook_denoiser: bool = False
+    enable_persian_optimization: bool = True
+    adaptive_processing: bool = True
 
     def __post_init__(self):
         """Validate and optimize configuration after initialization."""
@@ -148,6 +154,40 @@ class ConfigFactory:
             repetition_threshold=0.8,
             max_word_repetition=3,
             num_workers=6  # Increased from 2 to 6
+    @staticmethod
+    def create_advanced_persian_config() -> TranscriptionConfig:
+        """Create configuration with advanced Persian preprocessing."""
+        return TranscriptionConfig(
+            model_name="large-v3",
+            language="fa",
+            chunk_duration_ms=25000,
+            overlap_ms=300,
+            num_workers=6,
+            repetition_threshold=0.85,
+            max_word_repetition=2,
+            temperature=0.0,
+            condition_on_previous_text=True,
+            enable_preprocessing=True,
+            enable_advanced_preprocessing=True,
+            enable_facebook_denoiser=True,
+            enable_persian_optimization=True,
+            adaptive_processing=True,
+            use_smart_chunking=True
+        )
+    
+    @staticmethod
+    def create_facebook_denoiser_config() -> TranscriptionConfig:
+        """Create configuration with Facebook Denoiser for noisy audio."""
+        return TranscriptionConfig(
+            model_name="large-v3",
+            language="fa",
+            chunk_duration_ms=20000,
+            overlap_ms=400,
+            enable_preprocessing=True,
+            enable_advanced_preprocessing=True,
+            enable_facebook_denoiser=True,
+            enable_persian_optimization=True,
+            adaptive_processing=True
         )
         
         if output_dir:

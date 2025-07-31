@@ -129,12 +129,21 @@ class StandardAudioProcessor(AudioProcessor):
         
         # Initialize preprocessor if enabled
         if config.enable_preprocessing:
-            self.preprocessor = AudioPreprocessor(
-                enable_noise_reduction=config.enable_noise_reduction,
-                enable_vad=config.enable_voice_activity_detection,
-                enable_speech_enhancement=config.enable_speech_enhancement,
-                sample_rate=config.target_sample_rate
-            )
+            if config.enable_advanced_preprocessing:
+                from ..utils.advanced_audio_preprocessor import AdvancedAudioPreprocessor
+                self.preprocessor = AdvancedAudioPreprocessor(
+                    enable_facebook_denoiser=config.enable_facebook_denoiser,
+                    enable_persian_optimization=config.enable_persian_optimization,
+                    adaptive_processing=config.adaptive_processing,
+                    sample_rate=config.target_sample_rate
+                )
+            else:
+                self.preprocessor = AudioPreprocessor(
+                    enable_noise_reduction=config.enable_noise_reduction,
+                    enable_vad=config.enable_voice_activity_detection,
+                    enable_speech_enhancement=config.enable_speech_enhancement,
+                    sample_rate=config.target_sample_rate
+                )
         else:
             self.preprocessor = None
     
@@ -172,8 +181,17 @@ class StandardAudioProcessor(AudioProcessor):
     
     def create_chunks(self, audio: AudioSegment) -> List[Tuple[int, int]]:
         """Create optimized chunks with preprocessing-aware chunking."""
+        # Use advanced chunking if available
+        if (self.preprocessor and self.config.use_smart_chunking and 
+            hasattr(self.preprocessor, 'create_intelligent_chunks')):
+            chunks = self.preprocessor.create_intelligent_chunks(
+                audio, 
+                self.config.chunk_duration_ms, 
+                self.config.overlap_ms
+            )
+            return chunks
         # Use smart chunking if preprocessing is enabled
-        if self.preprocessor and self.config.use_smart_chunking:
+        elif self.preprocessor and self.config.use_smart_chunking:
             chunks = self.preprocessor.create_smart_chunks(
                 audio, 
                 self.config.chunk_duration_ms, 

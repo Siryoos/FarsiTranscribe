@@ -44,7 +44,7 @@ Examples:
     
     parser.add_argument(
         "--quality", "-q",
-        choices=["fast", "balanced", "high", "cpu-optimized"],
+        choices=["fast", "balanced", "high", "cpu-optimized", "advanced-persian", "facebook-denoiser"],
         default="balanced",
         help="Transcription quality preset (default: balanced)"
     )
@@ -123,6 +123,10 @@ def get_config_from_args(args: argparse.Namespace) -> TranscriptionConfig:
         config = ConfigFactory.create_high_quality_config()
     elif args.quality == "cpu-optimized":
         config = ConfigFactory.create_cpu_optimized_config()
+    elif args.quality == "advanced-persian":
+        config = ConfigFactory.create_advanced_persian_config()
+    elif args.quality == "facebook-denoiser":
+        config = ConfigFactory.create_facebook_denoiser_config()
     else:  # balanced
         config = ConfigFactory.create_optimized_config()
     

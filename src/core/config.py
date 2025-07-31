@@ -240,17 +240,17 @@ class ConfigFactory:
             num_workers=min(2, os.cpu_count() or 1),  # Minimal parallelization
             use_parallel_audio_prep=False,  # Disable parallel audio prep
             memory_efficient_mode=True,
-            enable_preprocessing=False,  # Disable preprocessing to save memory
-            enable_noise_reduction=False,
-            enable_voice_activity_detection=False,
-            enable_speech_enhancement=False,
-            use_smart_chunking=False,  # Use simple chunking
-            adaptive_processing=False,
-            memory_threshold_mb=256,  # Very low threshold
-            cleanup_interval_seconds=10,  # Very frequent cleanup
+            enable_preprocessing=True,  # Enable preprocessing for better quality
+            enable_noise_reduction=True,
+            enable_voice_activity_detection=True,
+            enable_speech_enhancement=True,
+            use_smart_chunking=True,  # Enable smart chunking
+            adaptive_processing=True,
+            memory_threshold_mb=512,  # Moderate threshold
+            cleanup_interval_seconds=15,  # Frequent cleanup
             streaming_chunk_size_mb=25,  # Small streaming chunks
             enable_memory_monitoring=True,
-            enable_sentence_preview=False  # Disable preview to save memory
+            enable_sentence_preview=True  # Enable preview for user feedback
         )
     
     @staticmethod

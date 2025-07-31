@@ -15,6 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from src.core.config import ConfigFactory
 from src.utils.audio_preprocessor import AudioPreprocessor
+from src.utils.chunk_calculator import create_chunk_calculator
 from pydub import AudioSegment
 
 
@@ -57,58 +58,47 @@ def analyze_audio_chunks(audio_file_path: str, config_name: str = "memory-optimi
         print(f"   File Size: {os.path.getsize(audio_file_path) / (1024*1024):.1f} MB")
         print()
         
-        # Calculate chunks
-        chunk_duration = config.chunk_duration_ms
-        overlap = config.overlap_ms
-        effective_chunk_duration = chunk_duration - overlap
+        # Create unified chunk calculator
+        chunk_calculator = create_chunk_calculator(config)
         
-        # Calculate number of chunks
-        if duration_ms <= chunk_duration:
-            num_chunks = 1
-        else:
-            num_chunks = int((duration_ms - overlap) / effective_chunk_duration) + 1
+        # Get comprehensive chunk analysis
+        chunk_analysis = chunk_calculator.get_chunk_analysis(duration_ms)
+        num_chunks = chunk_analysis['total_chunks']
+        
+        # Get memory and time estimates
+        memory_estimate = chunk_calculator.estimate_memory_usage(
+            duration_ms, 
+            audio.frame_rate, 
+            audio.channels
+        )
+        time_estimate = chunk_calculator.estimate_processing_time(duration_ms, config.model_name)
         
         print(f"📦 Chunk Analysis:")
         print(f"   Total Chunks: {num_chunks}")
-        print(f"   Chunk Duration: {chunk_duration}ms ({chunk_duration/1000:.1f}s)")
-        print(f"   Overlap: {overlap}ms ({overlap/1000:.1f}s)")
-        print(f"   Effective Chunk Duration: {effective_chunk_duration}ms ({effective_chunk_duration/1000:.1f}s)")
+        print(f"   Chunk Duration: {chunk_analysis['chunk_duration_ms']}ms ({chunk_analysis['chunk_duration_ms']/1000:.1f}s)")
+        print(f"   Overlap: {chunk_analysis['overlap_ms']}ms ({chunk_analysis['overlap_ms']/1000:.1f}s)")
+        print(f"   Effective Chunk Duration: {chunk_analysis['effective_chunk_duration_ms']}ms ({chunk_analysis['effective_chunk_duration_ms']/1000:.1f}s)")
+        print(f"   Average Chunk Duration: {chunk_analysis['avg_chunk_duration_ms']:.0f}ms")
         print()
         
         # Show chunk details
         print(f"🔢 Chunk Details:")
-        for i in range(num_chunks):
-            start_ms = i * effective_chunk_duration
-            end_ms = min(start_ms + chunk_duration, duration_ms)
-            chunk_duration_actual = end_ms - start_ms
-            
-            print(f"   Chunk {i+1:2d}: {start_ms:6.0f}ms - {end_ms:6.0f}ms ({chunk_duration_actual:6.0f}ms)")
+        for chunk_info in chunk_analysis['chunk_info']:
+            print(f"   Chunk {chunk_info.index+1:2d}: {chunk_info.start_ms:6.0f}ms - {chunk_info.end_ms:6.0f}ms ({chunk_info.duration_ms:6.0f}ms)")
         
         print()
         
-        # Memory estimation
-        estimated_memory_per_chunk = chunk_duration * audio.frame_rate * audio.channels * 2 / (1024 * 1024)  # MB
-        total_memory_estimate = estimated_memory_per_chunk * min(num_chunks, 3)  # Assume max 3 chunks in memory
-        
         print(f"💾 Memory Estimation:")
-        print(f"   Memory per chunk: ~{estimated_memory_per_chunk:.1f} MB")
-        print(f"   Peak memory usage: ~{total_memory_estimate:.1f} MB")
+        print(f"   Memory per chunk: ~{memory_estimate['memory_per_chunk_mb']:.1f} MB")
+        print(f"   Peak memory usage: ~{memory_estimate['peak_memory_mb']:.1f} MB")
+        print(f"   Total memory for all chunks: ~{memory_estimate['total_memory_mb']:.1f} MB")
+        print(f"   Max concurrent chunks: {memory_estimate['max_concurrent_chunks']}")
         print(f"   Processing mode: {'Streaming' if config.memory_efficient_mode else 'Batch'}")
         
-        # Processing time estimation
-        if config.model_name == "tiny":
-            time_per_chunk = 2  # seconds
-        elif config.model_name == "base":
-            time_per_chunk = 4
-        elif config.model_name == "small":
-            time_per_chunk = 8
-        elif config.model_name == "medium":
-            time_per_chunk = 15
-        else:  # large models
-            time_per_chunk = 30
-        
-        estimated_total_time = num_chunks * time_per_chunk
-        print(f"   Estimated processing time: ~{estimated_total_time:.0f} seconds")
+        print(f"⏱️  Time Estimation:")
+        print(f"   Time per chunk: ~{time_estimate['time_per_chunk_seconds']:.0f} seconds")
+        print(f"   Total processing time: ~{time_estimate['total_time_seconds']:.0f} seconds ({time_estimate['total_time_minutes']:.1f} minutes)")
+        print(f"   Chunks per minute: ~{time_estimate['chunks_per_minute']:.1f}")
         
         print()
         
@@ -130,10 +120,9 @@ def analyze_audio_chunks(audio_file_path: str, config_name: str = "memory-optimi
         return {
             'num_chunks': num_chunks,
             'duration_seconds': duration_seconds,
-            'chunk_duration_ms': chunk_duration,
-            'overlap_ms': overlap,
-            'estimated_memory_mb': total_memory_estimate,
-            'estimated_time_seconds': estimated_total_time
+            'chunk_analysis': chunk_analysis,
+            'memory_estimate': memory_estimate,
+            'time_estimate': time_estimate
         }
         
     except Exception as e:
@@ -162,17 +151,13 @@ def compare_configurations(audio_file_path: str):
         print(f"   Chunk Duration: {config.chunk_duration_ms}ms")
         print(f"   Overlap: {config.overlap_ms}ms")
         
-        # Calculate chunks
+        # Use unified chunk calculator
+        chunk_calculator = create_chunk_calculator(config)
         audio = AudioSegment.from_file(audio_file_path)
         duration_ms = len(audio)
-        chunk_duration = config.chunk_duration_ms
-        overlap = config.overlap_ms
-        effective_chunk_duration = chunk_duration - overlap
         
-        if duration_ms <= chunk_duration:
-            num_chunks = 1
-        else:
-            num_chunks = int((duration_ms - overlap) / effective_chunk_duration) + 1
+        chunk_analysis = chunk_calculator.get_chunk_analysis(duration_ms)
+        num_chunks = chunk_analysis['total_chunks']
         
         results[name] = {
             'num_chunks': num_chunks,

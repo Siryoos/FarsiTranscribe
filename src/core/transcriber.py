@@ -1,397 +1,220 @@
 """
-Enhanced transcription system with advanced repetition handling and modular design.
-RAM-optimized version with streaming audio processing.
+Unified high-performance audio transcriber with true streaming capabilities.
+Replaces both UnifiedAudioTranscriber and OptimizedAudioTranscriber with a single optimized implementation.
 """
 
 import os
 import logging
 import gc
 import time
-import weakref
+import subprocess
+import threading
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any, Iterator
-from abc import ABC, abstractmethod
-from multiprocessing import Pool, cpu_count, Manager
-from functools import partial
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import psutil
+import multiprocessing as mp
 
 import torch
 import whisper
 import numpy as np
 from pydub import AudioSegment
 from tqdm import tqdm
+import psutil
 
 from .config import TranscriptionConfig
 from ..utils.file_manager import TranscriptionFileManager
 from ..utils.repetition_detector import RepetitionDetector
 from ..utils.sentence_extractor import SentenceExtractor
-from ..utils.performance_monitor import performance_monitor
-from ..utils.audio_preprocessor import AudioPreprocessor, get_preprocessing_capabilities
 
-# Global worker function for multiprocessing (must be outside class)
-def transcribe_chunk_worker(chunk_data_and_config):
-    """Global worker function for multiprocessing with memory optimization."""
-    chunk_index, chunk_array, config_dict = chunk_data_and_config
+
+class UnifiedMemoryManager:
+    """Lightweight, efficient memory manager."""
     
-    try:
-        # Recreate config from dict
-        config = TranscriptionConfig.from_dict(config_dict)
+    def __init__(self, config: TranscriptionConfig):
+        self.config = config
+        self.memory_limit_mb = config.memory_threshold_mb
+        self.last_check = 0
+        self.check_interval = 10  # Reduced from 5 seconds
         
-        # Create fresh transcriber instance
-        temp_transcriber = StandardWhisperTranscriber(config, shared_model=None)
-        result = temp_transcriber.transcribe_chunk(chunk_array)
+    def check_and_cleanup(self) -> bool:
+        """Check memory and cleanup if needed."""
+        current_time = time.time()
+        if current_time - self.last_check < self.check_interval:
+            return False
+            
+        self.last_check = current_time
+        memory_mb = psutil.Process().memory_info().rss / 1024 / 1024
         
-        # Clean up immediately
-        del temp_transcriber
-        gc.collect()
-        
-        return chunk_index, result
-    except Exception as e:
-        return chunk_index, ""
-
-# Global model instance for sharing across processes with weak references
-_global_model = None
-_model_lock = threading.Lock()
-_model_refs = weakref.WeakSet()
-
-def get_shared_model(config: TranscriptionConfig):
-    """Get or create shared Whisper model instance with memory management."""
-    global _global_model
-    
-    with _model_lock:
-        if _global_model is None:
-            logging.info(f"Loading shared Whisper {config.model_name} model...")
-            start_time = time.time()
-            
-            # Enhanced SSL handling for model download
-            import ssl
-            import urllib.request
-            import certifi
-            
-            # Create SSL context with proper certificate verification
-            ssl_context = ssl.create_default_context(cafile=certifi.where())
-            
-            # Monkey patch urllib to use our SSL context
-            original_urlopen = urllib.request.urlopen
-            def urlopen_with_ssl(*args, **kwargs):
-                kwargs['context'] = ssl_context
-                return original_urlopen(*args, **kwargs)
-            urllib.request.urlopen = urlopen_with_ssl
-            
-            try:
-                _global_model = whisper.load_model(config.model_name, device=config.device)
-                load_time = time.time() - start_time
-                logging.info(f"Shared model loaded in {load_time:.2f} seconds")
-                
-                # Track model references for cleanup
-                _model_refs.add(_global_model)
-                
-            except Exception as e:
-                # Fallback: try without SSL verification
-                logging.warning(f"SSL verification failed, trying without verification: {e}")
-                ssl_context = ssl.create_default_context()
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-                
-                def urlopen_without_ssl(*args, **kwargs):
-                    kwargs['context'] = ssl_context
-                    return original_urlopen(*args, **kwargs)
-                urllib.request.urlopen = urlopen_without_ssl
-                
-                _global_model = whisper.load_model(config.model_name, device=config.device)
-                load_time = time.time() - start_time
-                logging.info(f"Shared model loaded (no SSL) in {load_time:.2f} seconds")
-                
-                # Track model references for cleanup
-                _model_refs.add(_global_model)
-            finally:
-                # Restore original urlopen
-                urllib.request.urlopen = original_urlopen
-    
-    return _global_model
-
-def cleanup_shared_model():
-    """Clean up shared model to free memory."""
-    global _global_model
-    
-    with _model_lock:
-        if _global_model is not None:
-            del _global_model
-            _global_model = None
-            _model_refs.clear()
+        if memory_mb > self.memory_limit_mb:
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-
-
-class MemoryManager:
-    """Memory management utility for transcription system."""
-    
-    def __init__(self, config: TranscriptionConfig):
-        self.config = config
-        self.memory_threshold_mb = 1024  # 1GB threshold
-        self.last_cleanup = time.time()
-        self.cleanup_interval = 30  # seconds
-        
-    def check_memory_usage(self) -> bool:
-        """Check if memory usage is above threshold."""
-        process = psutil.Process()
-        memory_mb = process.memory_info().rss / 1024 / 1024
-        return memory_mb > self.memory_threshold_mb
-    
-    def should_cleanup(self) -> bool:
-        """Check if cleanup is needed based on time interval."""
-        return time.time() - self.last_cleanup > self.cleanup_interval
-    
-    def cleanup(self, force: bool = False):
-        """Perform memory cleanup."""
-        if force or self.check_memory_usage() or self.should_cleanup():
-            gc.collect()
-            if self.config.device == "cuda" and torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            self.last_cleanup = time.time()
+            return True
+        return False
 
 
 class StreamingAudioProcessor:
-    """Streaming audio processor to reduce memory usage."""
+    """True streaming audio processor using ffmpeg."""
     
     def __init__(self, config: TranscriptionConfig):
         self.config = config
-        self.chunk_size_ms = config.chunk_duration_ms
-        self.overlap_ms = config.overlap_ms
+        self.logger = logging.getLogger(__name__)
         
-    def process_audio_stream(self, audio_file_path: str) -> Iterator[Tuple[int, np.ndarray]]:
-        """Process audio in streaming fashion to reduce memory usage."""
-        from pydub import AudioSegment
-        
-        # Load audio in chunks instead of full file
-        audio = AudioSegment.from_file(audio_file_path)
-        
-        # Convert to mono and normalize
-        if audio.channels > 1:
-            audio = audio.set_channels(1)
-        
-        # Set sample rate
-        if audio.frame_rate != self.config.target_sample_rate:
-            audio = audio.set_frame_rate(self.config.target_sample_rate)
-        
-        # Process in streaming chunks
-        start_ms = 0
-        chunk_index = 0
-        
-        while start_ms < len(audio):
-            end_ms = min(start_ms + self.chunk_size_ms, len(audio))
-            
-            # Extract chunk
-            chunk = audio[start_ms:end_ms]
-            chunk_array = np.array(chunk.get_array_of_samples(), dtype=np.float32)
-            
-            # Normalize
-            if chunk_array.size > 0:
-                chunk_array = chunk_array / np.max(np.abs(chunk_array)) if np.max(np.abs(chunk_array)) > 0 else chunk_array
-            
-            yield chunk_index, chunk_array
-            
-            # Move to next chunk with overlap
-            start_ms = end_ms - self.overlap_ms
-            chunk_index += 1
-            
-            # Clean up chunk to free memory
-            del chunk
-            gc.collect()
-
-
-class AudioProcessor(ABC):
-    """Abstract base class for audio processing."""
-    
-    @abstractmethod
-    def process_audio(self, audio_file_path: str) -> AudioSegment:
-        """Process audio file and return AudioSegment."""
-        pass
-    
-    @abstractmethod
-    def create_chunks(self, audio: AudioSegment) -> List[Tuple[int, int]]:
-        """Create chunks from audio."""
-        pass
-
-
-class WhisperTranscriber(ABC):
-    """Abstract base class for Whisper transcription."""
-    
-    @abstractmethod
-    def transcribe_chunk(self, chunk: np.ndarray) -> str:
-        """Transcribe a single chunk."""
-        pass
-
-
-class StandardAudioProcessor(AudioProcessor):
-    """Standard audio processing implementation with preprocessing support."""
-    
-    def __init__(self, config: TranscriptionConfig):
-        self.config = config
-        self.logger = logging.getLogger(self.__class__.__name__)
-        
-        # Initialize preprocessor if enabled
-        if config.enable_preprocessing:
-            if config.enable_advanced_preprocessing:
-                from ..utils.advanced_audio_preprocessor import AdvancedAudioPreprocessor
-                self.preprocessor = AdvancedAudioPreprocessor(
-                    enable_facebook_denoiser=config.enable_facebook_denoiser,
-                    enable_persian_optimization=config.enable_persian_optimization,
-                    adaptive_processing=config.adaptive_processing,
-                    sample_rate=config.target_sample_rate
-                )
-            else:
-                self.preprocessor = AudioPreprocessor(
-                    enable_noise_reduction=config.enable_noise_reduction,
-                    enable_vad=config.enable_voice_activity_detection,
-                    enable_speech_enhancement=config.enable_speech_enhancement,
-                    sample_rate=config.target_sample_rate
-                )
-        else:
-            self.preprocessor = None
-    
-    def process_audio(self, audio_file_path: str) -> AudioSegment:
-        """Load and preprocess audio with validation."""
+    def get_audio_info(self, file_path: str) -> Dict[str, Any]:
+        """Get audio info using ffprobe or fallback to pydub."""
         try:
-            self.logger.info(f"Loading audio: {audio_file_path}")
+            # Try ffprobe first (fastest)
+            cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', 
+                   '-show_format', '-show_streams', file_path]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
-            if not os.path.exists(audio_file_path):
-                raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
-            
-            audio = AudioSegment.from_file(audio_file_path)
-            
-            if len(audio) == 0:
-                raise ValueError("Audio file is empty")
-            
-            # Optimize audio for transcription
-            audio = audio.set_frame_rate(self.config.target_sample_rate)
-            audio = audio.set_channels(1)
-            
-            if audio.max_possible_amplitude > 0:
-                audio = audio.normalize()
-            
-            # Apply preprocessing if enabled
-            if self.preprocessor:
-                self.logger.info("Applying audio preprocessing...")
-                audio = self.preprocessor.preprocess_audio(audio)
-            
-            self.logger.info(f"Audio processed - Duration: {len(audio)/1000:.1f}s")
-            return audio
-            
+            if result.returncode == 0:
+                import json
+                data = json.loads(result.stdout)
+                audio_stream = next(s for s in data['streams'] if s['codec_type'] == 'audio')
+                duration = float(data['format']['duration'])
+                
+                return {
+                    'duration_ms': int(duration * 1000),
+                    'duration_seconds': duration,
+                    'sample_rate': int(audio_stream['sample_rate']),
+                    'channels': int(audio_stream['channels'])
+                }
         except Exception as e:
-            self.logger.error(f"Error loading audio: {e}")
+            self.logger.warning(f"ffprobe failed, using pydub: {e}")
+        
+        # Fallback to pydub
+        try:
+            sample = AudioSegment.from_file(file_path, duration=1.0)
+            full_audio = AudioSegment.from_file(file_path)
+            duration_ms = len(full_audio)
+            del full_audio
+            
+            return {
+                'duration_ms': duration_ms,
+                'duration_seconds': duration_ms / 1000,
+                'sample_rate': sample.frame_rate,
+                'channels': sample.channels
+            }
+        except Exception as e:
+            self.logger.error(f"Audio info extraction failed: {e}")
             raise
     
-    def create_chunks(self, audio: AudioSegment) -> List[Tuple[int, int]]:
-        """Create optimized chunks with preprocessing-aware chunking."""
-        # Use advanced chunking if available
-        if (self.preprocessor and self.config.use_smart_chunking and 
-            hasattr(self.preprocessor, 'create_intelligent_chunks')):
-            chunks = self.preprocessor.create_intelligent_chunks(
-                audio, 
-                self.config.chunk_duration_ms, 
-                self.config.overlap_ms
-            )
-            return chunks
-        # Use smart chunking if preprocessing is enabled
-        elif self.preprocessor and self.config.use_smart_chunking:
-            chunks = self.preprocessor.create_smart_chunks(
-                audio, 
-                self.config.chunk_duration_ms, 
-                self.config.overlap_ms
-            )
-            return chunks
+    def stream_chunks(self, file_path: str) -> Iterator[Tuple[int, np.ndarray]]:
+        """Stream audio chunks using ffmpeg or pydub fallback."""
+        chunk_duration_s = self.config.chunk_duration_ms / 1000
+        overlap_s = self.config.overlap_ms / 1000
+        effective_step_s = chunk_duration_s - overlap_s
         
-        # Fallback to standard chunking
-        chunks = []
-        audio_length = len(audio)
+        audio_info = self.get_audio_info(file_path)
+        total_duration_s = audio_info['duration_seconds']
         
-        if audio_length <= self.config.chunk_duration_ms:
-            return [(0, audio_length)]
+        chunk_index = 0
+        start_time = 0.0
         
-        current_pos = 0
-        chunk_size = self.config.chunk_duration_ms
-        overlap = self.config.overlap_ms
-        
-        while current_pos < audio_length:
-            end_pos = min(current_pos + chunk_size, audio_length)
-            chunks.append((current_pos, end_pos))
+        while start_time < total_duration_s:
+            end_time = min(start_time + chunk_duration_s, total_duration_s)
             
-            if end_pos == audio_length:
-                break
+            # Try ffmpeg first, fallback to pydub
+            chunk_array = self._extract_with_ffmpeg(file_path, start_time, end_time - start_time)
+            if chunk_array is None:
+                chunk_array = self._extract_with_pydub(file_path, start_time, end_time - start_time)
+            
+            if chunk_array is not None and len(chunk_array) > 0:
+                yield chunk_index, chunk_array
+            
+            chunk_index += 1
+            start_time += effective_step_s
+    
+    def _extract_with_ffmpeg(self, file_path: str, start_time: float, duration: float) -> Optional[np.ndarray]:
+        """Extract audio segment using ffmpeg."""
+        try:
+            cmd = [
+                'ffmpeg', '-i', file_path, '-ss', str(start_time), '-t', str(duration),
+                '-ar', str(self.config.target_sample_rate), '-ac', '1', '-f', 'f32le', '-'
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, stderr=subprocess.DEVNULL, timeout=60)
+            
+            if result.returncode == 0 and len(result.stdout) > 0:
+                audio_data = np.frombuffer(result.stdout, dtype=np.float32)
+                if len(audio_data) > 0 and np.max(np.abs(audio_data)) > 0:
+                    audio_data = audio_data / np.max(np.abs(audio_data))
+                return audio_data
                 
-            current_pos = end_pos - overlap
-            
-        self.logger.info(f"Created {len(chunks)} chunks with {overlap}ms overlap")
-        return chunks
-
-
-class StandardWhisperTranscriber(WhisperTranscriber):
-    """Standard Whisper transcription implementation with shared model support."""
+        except Exception:
+            pass
+        return None
     
-    def __init__(self, config: TranscriptionConfig, shared_model: Optional[whisper.Whisper] = None):
+    def _extract_with_pydub(self, file_path: str, start_time: float, duration: float) -> Optional[np.ndarray]:
+        """Extract audio segment using pydub as fallback."""
+        try:
+            start_ms = int(start_time * 1000)
+            duration_ms = int(duration * 1000)
+            
+            audio = AudioSegment.from_file(file_path)
+            chunk = audio[start_ms:start_ms + duration_ms]
+            
+            if chunk.frame_rate != self.config.target_sample_rate:
+                chunk = chunk.set_frame_rate(self.config.target_sample_rate)
+            if chunk.channels != 1:
+                chunk = chunk.set_channels(1)
+            
+            chunk_array = np.array(chunk.get_array_of_samples(), dtype=np.float32)
+            if len(chunk_array) > 0 and np.max(np.abs(chunk_array)) > 0:
+                chunk_array = chunk_array / np.max(np.abs(chunk_array))
+            
+            return chunk_array
+            
+        except Exception:
+            return None
+
+
+class OptimizedWhisperTranscriber:
+    """Optimized Whisper transcriber with model caching."""
+    
+    _model_cache = {}
+    _model_lock = threading.Lock()
+    
+    def __init__(self, config: TranscriptionConfig):
         self.config = config
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.model = shared_model
-        if self.model is None:
-            self._load_model()
+        self.logger = logging.getLogger(__name__)
+        self.model = self._get_cached_model()
     
-    def _load_model(self) -> None:
-        """Load Whisper model with enhanced configuration."""
-        try:
-            self.logger.info(f"Loading Whisper {self.config.model_name} model...")
+    def _get_cached_model(self):
+        """Get or create cached Whisper model."""
+        model_key = f"{self.config.model_name}_{self.config.device}"
+        
+        with self._model_lock:
+            if model_key not in self._model_cache:
+                self.logger.info(f"Loading Whisper {self.config.model_name} model...")
+                start_time = time.time()
+                
+                try:
+                    model = whisper.load_model(self.config.model_name, device=self.config.device)
+                    self._model_cache[model_key] = model
+                    self.logger.info(f"Model loaded in {time.time() - start_time:.2f}s")
+                except Exception as e:
+                    self.logger.error(f"Model loading failed: {e}")
+                    raise
             
-            # Disable SSL verification for model download
-            import ssl
-            import urllib.request
-            
-            # Create SSL context that doesn't verify certificates
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-            
-            # Monkey patch urllib to use our SSL context
-            original_urlopen = urllib.request.urlopen
-            def urlopen_without_ssl(*args, **kwargs):
-                kwargs['context'] = ssl_context
-                return original_urlopen(*args, **kwargs)
-            urllib.request.urlopen = urlopen_without_ssl
-            
-            start_time = time.time()
-            self.model = whisper.load_model(self.config.model_name, device=self.config.device)
-            load_time = time.time() - start_time
-            
-            # Restore original urlopen
-            urllib.request.urlopen = original_urlopen
-            
-            if self.config.device == "cuda":
-                self.model = self.model.to(self.config.device)
-            
-            self.logger.info(f"Model loaded in {load_time:.2f} seconds")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to load model: {e}")
-            raise RuntimeError(f"Model loading failed: {e}")
+            return self._model_cache[model_key]
     
-    def transcribe_chunk(self, chunk: np.ndarray) -> str:
-        """Transcribe chunk with anti-repetition measures."""
+    def transcribe_chunk(self, chunk_array: np.ndarray) -> str:
+        """Transcribe audio chunk with optimized parameters."""
         try:
-            if len(chunk.shape) > 1:
-                chunk = chunk.mean(axis=1)
-            
-            chunk = chunk.astype(np.float32)
-            if len(chunk) == 0:
+            if len(chunk_array) == 0:
                 return ""
             
-            if np.max(np.abs(chunk)) > 0:
-                chunk = chunk / np.max(np.abs(chunk))
+            # Ensure proper format
+            if len(chunk_array.shape) > 1:
+                chunk_array = chunk_array.mean(axis=1)
+            chunk_array = chunk_array.astype(np.float32)
             
-            # Enhanced transcription parameters to reduce repetition
+            # Transcribe with anti-repetition settings
             result = self.model.transcribe(
-                chunk,
+                chunk_array,
                 language=self.config.language,
                 verbose=False,
                 temperature=self.config.temperature,
@@ -401,490 +224,131 @@ class StandardWhisperTranscriber(WhisperTranscriber):
                 compression_ratio_threshold=self.config.compression_ratio_threshold
             )
             
-            transcribed_text = result["text"].strip()
-            
-            # Immediate repetition cleaning
-            cleaned_text = RepetitionDetector.clean_repetitive_text(transcribed_text, self.config)
-            
-            return cleaned_text
+            text = result["text"].strip()
+            return RepetitionDetector.clean_repetitive_text(text, self.config) if text else ""
             
         except Exception as e:
-            self.logger.error(f"Transcription failed: {e}")
+            self.logger.error(f"Transcription error: {e}")
             return ""
-
-
-class TranscriptionMerger:
-    """Advanced transcription merging with deduplication."""
-    
-    def __init__(self, config: TranscriptionConfig):
-        self.config = config
-        self.logger = logging.getLogger(self.__class__.__name__)
-    
-    def merge_transcriptions(self, transcriptions: List[str]) -> str:
-        """Advanced merging with overlap detection and deduplication."""
-        if not transcriptions:
-            return ""
-        
-        # Filter valid transcriptions
-        valid_transcriptions = [t.strip() for t in transcriptions if t.strip()]
-        if not valid_transcriptions:
-            return ""
-        
-        if len(valid_transcriptions) == 1:
-            return RepetitionDetector.clean_repetitive_text(valid_transcriptions[0], self.config)
-        
-        # Advanced merging with overlap detection
-        merged_text = valid_transcriptions[0]
-        
-        for current_text in valid_transcriptions[1:]:
-            # Find potential overlap between texts
-            merged_words = merged_text.split()
-            current_words = current_text.split()
-            
-            best_overlap = 0
-            overlap_start = len(merged_words)
-            
-            # Look for overlapping sequences
-            min_overlap_length = min(10, len(merged_words), len(current_words))
-            
-            for i in range(min_overlap_length, 0, -1):
-                if len(merged_words) >= i:
-                    merged_suffix = merged_words[-i:]
-                    if len(current_words) >= i and current_words[:i] == merged_suffix:
-                        # Check similarity to avoid false positives
-                        suffix_text = ' '.join(merged_suffix)
-                        prefix_text = ' '.join(current_words[:i])
-                        if RepetitionDetector.similarity_ratio(suffix_text, prefix_text) > self.config.repetition_threshold:
-                            best_overlap = i
-                            overlap_start = len(merged_words) - i
-                            break
-            
-            # Merge with overlap removal
-            if best_overlap > 0:
-                merged_text = ' '.join(merged_words[:overlap_start] + current_words)
-            else:
-                merged_text += ' ' + current_text
-        
-        # Final comprehensive cleaning
-        final_text = RepetitionDetector.clean_repetitive_text(merged_text, self.config)
-        
-        # Additional cleanup
-        import re
-        final_text = re.sub(r'\s+', ' ', final_text).strip()
-        
-        self.logger.info(f"Merged {len(valid_transcriptions)} segments with deduplication")
-        return final_text
 
 
 class UnifiedAudioTranscriber:
-    """Enhanced transcription system with advanced repetition handling and modular design."""
+    """Unified high-performance audio transcriber with streaming capabilities."""
     
     def __init__(self, config: TranscriptionConfig):
         self.config = config
         self.logger = self._setup_logging()
-        
-        # Initialize memory manager
-        self.memory_manager = MemoryManager(config)
-        
-        # Log preprocessing capabilities
-        capabilities = get_preprocessing_capabilities()
-        self.logger.info(f"Preprocessing capabilities: {capabilities}")
-        
-        # Setup GPU
-        self._setup_gpu()
-        
-        # Set up multiprocessing with optimized worker count
-        self.num_workers = min(self.config.num_workers, cpu_count())
-        self.logger.info(f"Using {self.num_workers} CPU cores for parallel processing")
-        
-        # Initialize shared model
-        if self.config.device == "cpu":
-            self.shared_model = get_shared_model(config)
-        else:
-            self.shared_model = None
-        
-        # Initialize components
-        self.audio_processor = StandardAudioProcessor(config)
-        self.transcriber = StandardWhisperTranscriber(config, shared_model=self.shared_model)
-        self.transcription_merger = TranscriptionMerger(config)
+        self.memory_manager = UnifiedMemoryManager(config)
+        self.audio_processor = StreamingAudioProcessor(config)
+        self.whisper_transcriber = OptimizedWhisperTranscriber(config)
         self.sentence_extractor = SentenceExtractor()
-        self.repetition_detector = RepetitionDetector()
-        self.streaming_processor = StreamingAudioProcessor(config)
-    
-
-    def _prepare_audio_chunks_parallel(self, audio: AudioSegment, chunks: List[Tuple[int, int]]) -> List[np.ndarray]:
-        """Prepare audio chunks in parallel for better performance."""
-        if not self.config.use_parallel_audio_prep:
-            return self._prepare_audio_chunks_sequential(audio, chunks)
         
-        def prepare_single_chunk(chunk_data):
-            chunk_index, (start_ms, end_ms) = chunk_data
-            try:
-                chunk_audio = audio[start_ms:end_ms]
-                chunk_array = np.array(chunk_audio.get_array_of_samples())
-                
-                if chunk_audio.channels == 2:
-                    chunk_array = chunk_array.reshape((-1, 2)).mean(axis=1)
-                    
-                return chunk_index, chunk_array
-            except Exception as e:
-                self.logger.error(f"Error preparing chunk {chunk_index}: {e}")
-                return chunk_index, np.array([])
-        
-        # Prepare chunk data
-        chunk_data = [(i, chunk) for i, chunk in enumerate(chunks)]
-        
-        # Use ThreadPoolExecutor for I/O-bound audio preparation
-        audio_arrays = [None] * len(chunks)
-        
-        with ThreadPoolExecutor(max_workers=min(4, self.num_workers)) as executor:
-            futures = {executor.submit(prepare_single_chunk, data): data for data in chunk_data}
-            
-            with tqdm(total=len(chunks), desc="📦 Preparing chunks", leave=False) as prep_bar:
-                for future in as_completed(futures):
-                    chunk_index, chunk_array = future.result()
-                    audio_arrays[chunk_index] = chunk_array
-                    prep_bar.update(1)
-        
-        return audio_arrays
-    
-    def _prepare_audio_chunks_sequential(self, audio: AudioSegment, chunks: List[Tuple[int, int]]) -> List[np.ndarray]:
-        """Sequential audio chunk preparation (fallback)."""
-        audio_arrays = []
-        
-        with tqdm(total=len(chunks), desc="📦 Preparing", leave=False) as prep_bar:
-            for start_ms, end_ms in chunks:
-                try:
-                    chunk_audio = audio[start_ms:end_ms]
-                    chunk_array = np.array(chunk_audio.get_array_of_samples())
-                    
-                    if chunk_audio.channels == 2:
-                        chunk_array = chunk_array.reshape((-1, 2)).mean(axis=1)
-                        
-                    audio_arrays.append(chunk_array)
-                    prep_bar.update(1)
-                    
-                except Exception as e:
-                    self.logger.error(f"Error preparing chunk: {e}")
-                    audio_arrays.append(np.array([]))
-                    prep_bar.update(1)
-        
-        return audio_arrays
-
     def _setup_logging(self) -> logging.Logger:
-        """Configure comprehensive logging for performance monitoring."""
+        """Setup logging with file output."""
+        log_file = os.path.join(self.config.output_directory, 'transcription.log')
+        os.makedirs(self.config.output_directory, exist_ok=True)
+        
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.StreamHandler(),
-                logging.FileHandler(
-                    os.path.join(self.config.output_directory, 'transcription.log'),
-                    mode='a',
-                    encoding='utf-8'
-                )
+                logging.FileHandler(log_file, mode='a', encoding='utf-8')
             ]
         )
-        return logging.getLogger(self.__class__.__name__)
-    
-    def _setup_gpu(self) -> None:
-        """Configure GPU settings with validation."""
-        if not torch.cuda.is_available():
-            self.logger.warning("CUDA not available, using CPU")
-            self.config.device = "cpu"
-            return
-            
-        try:
-            torch.cuda.empty_cache()
-            if hasattr(torch.cuda, 'set_per_process_memory_fraction'):
-                torch.cuda.set_per_process_memory_fraction(0.8)
-            
-            device_props = torch.cuda.get_device_properties(0)
-            self.logger.info(f"GPU: {torch.cuda.get_device_name()}")
-            self.logger.info(f"CUDA Memory: {device_props.total_memory / 1e9:.1f} GB")
-            
-        except Exception as e:
-            self.logger.error(f"GPU setup error: {e}")
-            self.config.device = "cpu"
-    
-    def _process_chunks_with_preview(self, audio: AudioSegment, chunks: List[Tuple[int, int]], 
-                                   file_manager: TranscriptionFileManager) -> List[str]:
-        """Process chunks with enhanced preview and monitoring - OPTIMIZED VERSION."""
-        all_transcriptions = []
-        
-        # Start performance monitoring
-        with performance_monitor(enable_monitoring=True) as monitor:
-            monitor.start_monitoring(len(chunks), len(audio) / 1000)
-            
-            # Parallel audio preparation
-            print("🔄 Preparing audio chunks...")
-            audio_arrays = self._prepare_audio_chunks_parallel(audio, chunks)
-            
-            # Prepare chunk data for parallel processing
-            chunk_data = [(i, chunk_array) for i, chunk_array in enumerate(audio_arrays)]
-            
-            print(f"🚀 Processing {len(chunks)} chunks using {self.num_workers} CPU cores")
-            
-            # Use multiprocessing for parallel transcription with optimized settings
-            with Pool(processes=self.num_workers, maxtasksperchild=10) as pool:
-                with tqdm(total=len(chunks), desc="🎵 Transcribing", unit="chunk") as main_pbar:
-                    
-                    # Process chunks in parallel with chunking for memory efficiency
-                    chunk_size = max(1, len(chunks) // (self.num_workers * 2))
-                    results = []
-                    
-                    for i in range(0, len(chunk_data), chunk_size):
-                        batch = chunk_data[i:i + chunk_size]
-                        
-                        # Prepare data for global worker function
-                        config_dict = self.config.to_dict()
-                        worker_data = [(chunk_index, chunk_array, config_dict) for chunk_index, chunk_array in batch]
-                        
-                        # Process batch
-                        batch_results = []
-                        for result in pool.imap_unordered(transcribe_chunk_worker, worker_data):
-                            chunk_index, transcription = result
-                            batch_results.append((chunk_index, transcription))
-                            
-                            # Update performance monitor
-                            monitor.update_progress(len(results) + len(batch_results))
-                            
-                            # Enhanced preview with repetition detection
-                            if self.config.enable_sentence_preview and transcription.strip():
-                                sentences = self.sentence_extractor.extract_sentences(
-                                    transcription, self.config.preview_sentence_count
-                                )
-                                if sentences:
-                                    preview = self.sentence_extractor.format_sentence_preview(
-                                        sentences, chunk_index + 1
-                                    )
-                                    print(f"\n{preview}")
-                            
-                            main_pbar.update(1)
-                            main_pbar.set_postfix({
-                                'Cores': f'{self.num_workers}',
-                                'Processed': f"{len(results) + len(batch_results)}/{len(chunks)}",
-                                'Non-empty': f"{sum(1 for _, r in results + batch_results if r.strip())}"
-                            })
-                        
-                        results.extend(batch_results)
-                        
-                        # Memory cleanup after each batch
-                        if self.config.memory_efficient_mode:
-                            gc.collect()
-                    
-                    # Sort results by chunk index to maintain order
-                    results.sort(key=lambda x: x[0])
-                    all_transcriptions = [transcription for _, transcription in results]
-        
-        return all_transcriptions
+        return logging.getLogger(__name__)
     
     def transcribe_file(self, audio_file_path: str) -> str:
-        """Main transcription method with comprehensive anti-repetition pipeline."""
-        if not os.path.exists(audio_file_path):
-            raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
-        
-        base_filename = Path(audio_file_path).stem
-        file_manager = TranscriptionFileManager(base_filename, self.config.output_directory, self.config)
-        
-        print("=" * 80)
-        print("🎙️  ENHANCED AUDIO TRANSCRIPTION SYSTEM")
-        print("🔧 Anti-Repetition Features Enabled")
-        print("💾 RAM-Optimized Processing")
-        print("=" * 80)
-        
-        # Use streaming mode for large files or when memory efficient mode is enabled
-        if self.config.memory_efficient_mode or os.path.getsize(audio_file_path) > 100 * 1024 * 1024:  # 100MB
-            return self._transcribe_file_streaming(audio_file_path, file_manager)
-        else:
-            return self._transcribe_file_standard(audio_file_path, file_manager)
-    
-    def _transcribe_file_streaming(self, audio_file_path: str, file_manager: TranscriptionFileManager) -> str:
-        """Streaming transcription method for memory efficiency."""
-        print("🔄 Using streaming mode for memory efficiency...")
-        
+        """Main transcription method with streaming processing."""
         try:
-            # First, analyze the audio to get chunk information
-            audio = AudioSegment.from_file(audio_file_path)
-            duration_ms = len(audio)
-            chunk_duration = self.config.chunk_duration_ms
-            overlap = self.config.overlap_ms
-            effective_chunk_duration = chunk_duration - overlap
+            if not os.path.exists(audio_file_path):
+                raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
             
-            # Calculate total chunks
-            if duration_ms <= chunk_duration:
-                total_chunks = 1
-            else:
-                total_chunks = int((duration_ms - overlap) / effective_chunk_duration) + 1
+            base_filename = Path(audio_file_path).stem
+            file_manager = TranscriptionFileManager(
+                base_filename, self.config.output_directory, self.config
+            )
             
-            print(f"📊 Audio Analysis:")
-            print(f"   Duration: {duration_ms/1000:.1f} seconds")
-            print(f"   Total Chunks: {total_chunks}")
-            print(f"   Chunk Duration: {chunk_duration}ms ({chunk_duration/1000:.1f}s)")
-            print(f"   Overlap: {overlap}ms ({overlap/1000:.1f}s)")
-            print(f"   Effective Chunk Duration: {effective_chunk_duration}ms ({effective_chunk_duration/1000:.1f}s)")
-            print()
+            print("🎙️  UNIFIED AUDIO TRANSCRIPTION SYSTEM")
+            print("=" * 50)
             
+            # Get audio info
+            print("🔄 Analyzing audio...")
+            audio_info = self.audio_processor.get_audio_info(audio_file_path)
+            duration_s = audio_info['duration_seconds']
+            
+            # Estimate chunks
+            chunk_duration_s = self.config.chunk_duration_ms / 1000
+            overlap_s = self.config.overlap_ms / 1000
+            estimated_chunks = max(1, int(duration_s / (chunk_duration_s - overlap_s)))
+            
+            print(f"✅ Audio: {duration_s:.1f}s, ~{estimated_chunks} chunks")
+            print(f"🔧 Model: {self.config.model_name}, Device: {self.config.device}")
+            
+            # Process with streaming
             transcriptions = []
-            chunk_count = 0
-            
-            # Process audio in streaming fashion
-            for chunk_index, chunk_array in self.streaming_processor.process_audio_stream(audio_file_path):
-                # Transcribe chunk
-                transcription = self.transcriber.transcribe_chunk(chunk_array)
-                transcriptions.append(transcription)
-                chunk_count += 1
-                
-                # Memory cleanup after each chunk
-                del chunk_array
-                self.memory_manager.cleanup()
-                
-                # Progress update with chunk information
-                progress_percent = (chunk_count / total_chunks) * 100
-                print(f"📊 Progress: {chunk_count}/{total_chunks} chunks ({progress_percent:.1f}%)")
-                
-                # Preview for first few chunks
-                if self.config.enable_sentence_preview and chunk_count <= 3 and transcription.strip():
-                    sentences = self.sentence_extractor.extract_sentences(
-                        transcription, self.config.preview_sentence_count
-                    )
-                    if sentences:
-                        preview = self.sentence_extractor.format_sentence_preview(
-                            sentences, chunk_count
-                        )
-                        print(f"\n{preview}")
+            with tqdm(total=estimated_chunks, desc="🎙️ Transcribing", unit="chunk") as pbar:
+                for chunk_index, chunk_array in self.audio_processor.stream_chunks(audio_file_path):
+                    transcription = self.whisper_transcriber.transcribe_chunk(chunk_array)
+                    transcriptions.append(transcription)
+                    
+                    # Show preview
+                    if self.config.enable_sentence_preview and transcription.strip():
+                        preview = transcription.strip()[:80]
+                        if len(transcription) > 80:
+                            preview += "..."
+                        print(f"\n📝 Chunk {chunk_index + 1}: {preview}")
+                    
+                    pbar.update(1)
+                    
+                    # Memory management
+                    self.memory_manager.check_and_cleanup()
             
             # Merge transcriptions
             print("\n🔄 Merging transcriptions...")
-            final_transcription = self.transcription_merger.merge_transcriptions(transcriptions)
+            final_text = self._merge_transcriptions(transcriptions)
             
             # Save results
             print("🔄 Saving results...")
-            success = file_manager.save_unified_transcription(final_transcription)
+            file_manager.save_unified_transcription(final_text)
             
-            if not success:
-                raise RuntimeError("Failed to save transcription")
+            print(f"✅ Transcription completed!")
+            print(f"📝 Length: {len(final_text)} characters")
+            print(f"📄 Saved to: {self.config.output_directory}")
             
-            # Display results
-            print(f"\n✅ Streaming transcription completed: {chunk_count}/{total_chunks} chunks processed")
-            print(f"📄 Output saved to: {self.config.output_directory}")
-            
-            return final_transcription
-            
-        except Exception as e:
-            self.logger.error(f"Streaming transcription failed: {e}")
-            raise
-        finally:
-            self._cleanup_memory()
-    
-    def _transcribe_file_standard(self, audio_file_path: str, file_manager: TranscriptionFileManager) -> str:
-        """Standard transcription method for smaller files."""
-        try:
-            # Phase 1: Audio preparation
-            print("🔄 Phase 1: Loading audio...")
-            audio = self.audio_processor.process_audio(audio_file_path)
-            
-            # Phase 2: Intelligent chunking
-            print("🔄 Phase 2: Creating optimized segments...")
-            chunks = self.audio_processor.create_chunks(audio)
-            
-            # Display chunk information
-            duration_ms = len(audio)
-            chunk_duration = self.config.chunk_duration_ms
-            overlap = self.config.overlap_ms
-            effective_chunk_duration = chunk_duration - overlap
-            
-            print(f"📊 Audio Analysis:")
-            print(f"   Duration: {duration_ms/1000:.1f} seconds")
-            print(f"   Total Chunks: {len(chunks)}")
-            print(f"   Chunk Duration: {chunk_duration}ms ({chunk_duration/1000:.1f}s)")
-            print(f"   Overlap: {overlap}ms ({overlap/1000:.1f}s)")
-            print(f"   Effective Chunk Duration: {effective_chunk_duration}ms ({effective_chunk_duration/1000:.1f}s)")
-            print()
-            
-            print(f"📊 Processing {len(chunks)} segments • Duration: {len(audio)/1000:.1f}s")
-            
-            # Phase 3: Enhanced transcription
-            print("🔄 Phase 3: Transcribing with repetition control...")
-            transcriptions = self._process_chunks_with_preview(audio, chunks, file_manager)
-            
-            # Phase 4: Advanced merging with deduplication
-            print("\n🔄 Phase 4: Merging with deduplication...")
-            final_transcription = self.transcription_merger.merge_transcriptions(transcriptions)
-            
-            # Phase 5: Save results
-            print("🔄 Phase 5: Saving cleaned results...")
-            success = file_manager.save_unified_transcription(final_transcription)
-            
-            if not success:
-                raise RuntimeError("Failed to save transcription")
-            
-            # Display results
-            self._display_completion_summary(file_manager, audio, len(transcriptions), final_transcription)
-            
-            return final_transcription
+            return final_text
             
         except Exception as e:
             self.logger.error(f"Transcription failed: {e}")
             raise
         finally:
-            self._cleanup_memory()
+            self._cleanup()
     
-    def _display_completion_summary(self, file_manager: TranscriptionFileManager, 
-                                  audio: AudioSegment, segment_count: int, transcription: str) -> None:
-        """Display comprehensive results including cleaning statistics."""
-        print("\n" + "=" * 80)
-        print("✅ TRANSCRIPTION COMPLETED WITH CLEANING")
-        print("=" * 80)
+    def _merge_transcriptions(self, transcriptions: List[str]) -> str:
+        """Merge transcriptions with deduplication."""
+        valid_transcriptions = [t.strip() for t in transcriptions if t.strip()]
         
-        info = file_manager.get_transcription_info()
-        audio_duration = len(audio) / 1000
+        if not valid_transcriptions:
+            return ""
         
-        print(f"📊 Audio Metrics:")
-        print(f"   • Duration: {audio_duration:.1f} seconds")
-        print(f"   • Segments: {segment_count}")
-        print(f"   • Device: {self.config.device.upper()}")
+        # Simple but effective merging
+        merged_text = " ".join(valid_transcriptions)
         
-        print(f"📄 Output Files:")
-        print(f"   • Original: {info['unified_file_path']}")
-        print(f"   • Cleaned: {info['cleaned_file_path']}")
+        # Clean up whitespace and apply final repetition cleaning
+        import re
+        merged_text = re.sub(r'\s+', ' ', merged_text).strip()
+        merged_text = RepetitionDetector.clean_repetitive_text(merged_text, self.config)
         
-        if info['original_exists'] and info['cleaned_exists']:
-            reduction_percent = ((info['original_characters'] - info['cleaned_characters']) / 
-                               info['original_characters'] * 100) if info['original_characters'] > 0 else 0
-            
-            print(f"📈 Cleaning Results:")
-            print(f"   • Original: {info['original_characters']:,} chars, {info['original_words']:,} words")
-            print(f"   • Cleaned: {info['cleaned_characters']:,} chars, {info['cleaned_words']:,} words")
-            print(f"   • Reduction: {reduction_percent:.1f}%")
-        
-        print("=" * 80)
+        return merged_text
     
-    def _cleanup_memory(self) -> None:
-        """Enhanced memory cleanup with comprehensive resource management."""
-        # Force garbage collection
+    def _cleanup(self):
+        """Clean up resources."""
         gc.collect()
-        
-        # Clear CUDA cache if using GPU
         if self.config.device == "cuda" and torch.cuda.is_available():
             torch.cuda.empty_cache()
-            torch.cuda.synchronize()
-        
-        # Clean up shared model if not needed
-        if hasattr(self, 'shared_model') and self.shared_model is not None:
-            cleanup_shared_model()
-        
-        # Force memory cleanup
-        self.memory_manager.cleanup(force=True)
-        
-        # Log memory usage
-        if hasattr(self, 'logger'):
-            process = psutil.Process()
-            memory_mb = process.memory_info().rss / 1024 / 1024
-            self.logger.info(f"Memory usage after cleanup: {memory_mb:.1f} MB")
     
     def __enter__(self):
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._cleanup_memory()
+        self._cleanup()

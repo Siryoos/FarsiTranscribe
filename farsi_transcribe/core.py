@@ -8,12 +8,12 @@ model inference, and result generation.
 import logging
 import time
 import gc
+import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Callable
 from tqdm import tqdm
 import torch
 import whisper
-import numpy as np
 
 from .config import TranscriptionConfig
 from .audio import AudioProcessor, AudioChunk
@@ -180,8 +180,9 @@ class FarsiTranscriber:
             from pydub.utils import mediainfo
             info = mediainfo(str(audio_path))
             audio_metadata['duration_seconds'] = float(info.get('duration', 0))
-        except:
+        except (ImportError, IOError, OSError, subprocess.CalledProcessError, Exception) as e:
             # Fallback - we'll update duration after processing
+            logger.debug(f"Could not get media info: {e}")
             audio_metadata['duration_seconds'] = 0
         
         # Stream and process chunks

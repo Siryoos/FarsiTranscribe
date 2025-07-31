@@ -6,7 +6,6 @@ This script removes old files and reorganizes the project structure
 according to the new modular design.
 """
 
-import os
 import shutil
 from pathlib import Path
 import argparse

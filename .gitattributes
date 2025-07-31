@@ -1,0 +1,192 @@
+# =============================================================================
+# FarsiTranscribe - Git Attributes Configuration
+# =============================================================================
+# This file ensures proper handling of different file types in version control
+
+# =============================================================================
+# TEXT FILES - Ensure consistent line endings
+# =============================================================================
+
+# Python files
+*.py text eol=lf
+*.pyw text eol=lf
+
+# Configuration files
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+*.conf text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.rst text eol=lf
+*.txt text eol=lf
+*.adoc text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+
+# Makefiles
+Makefile text eol=lf
+makefile text eol=lf
+*.mk text eol=lf
+
+# Git files
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.gitmodules text eol=lf
+
+# Web files
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.jsx text eol=lf
+*.tsx text eol=lf
+*.xml text eol=lf
+*.svg text eol=lf
+
+# Data files
+*.csv text eol=lf
+*.tsv text eol=lf
+*.sql text eol=lf
+
+# =============================================================================
+# BINARY FILES - Mark as binary to prevent line ending issues
+# =============================================================================
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.ico binary
+*.svg binary
+*.webp binary
+*.avif binary
+
+# Audio files (for examples)
+examples/audio/*.wav binary
+examples/audio/*.mp3 binary
+examples/audio/*.m4a binary
+examples/audio/*.flac binary
+examples/audio/*.ogg binary
+examples/audio/*.aac binary
+
+# Video files
+*.mp4 binary
+*.avi binary
+*.mov binary
+*.mkv binary
+*.webm binary
+*.flv binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+*.bz2 binary
+*.xz binary
+*.rar binary
+*.7z binary
+
+# Documents
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+
+# =============================================================================
+# MODEL FILES - Large binary files
+# =============================================================================
+
+# PyTorch models
+*.pt binary
+*.pth binary
+
+# TensorFlow models
+*.pb binary
+*.tflite binary
+
+# ONNX models
+*.onnx binary
+
+# Other model formats
+*.bin binary
+*.safetensors binary
+*.ckpt binary
+
+# =============================================================================
+# EXECUTABLES - Mark as binary
+# =============================================================================
+
+# Compiled executables
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.app binary
+
+# =============================================================================
+# DIFF and MERGE - Configure diff behavior
+# =============================================================================
+
+# Python files - use Python-aware diff
+*.py diff=python
+
+# JSON files - use JSON-aware diff
+*.json diff=json
+
+# YAML files - use YAML-aware diff
+*.yaml diff=yaml
+*.yml diff=yaml
+
+# Markdown files - use Markdown-aware diff
+*.md diff=markdown
+
+# =============================================================================
+# FILTERS - Custom filters for specific file types
+# =============================================================================
+
+# Jupyter notebooks - use nbdime for better diffs
+*.ipynb filter=nbdime
+
+# =============================================================================
+# LINGUIST - GitHub language detection overrides
+# =============================================================================
+
+# Force Python detection for specific files
+main.py linguist-language=Python
+setup.py linguist-language=Python
+*.py linguist-language=Python
+
+# Mark documentation as documentation
+README.md linguist-documentation
+LICENSE linguist-documentation
+CHANGELOG.md linguist-documentation
+CONTRIBUTING.md linguist-documentation
+CODE_OF_CONDUCT.md linguist-documentation
+docs/**/*.md linguist-documentation
+
+# Mark configuration files as configuration
+requirements.txt linguist-language=Text
+pyproject.toml linguist-language=TOML
+setup.cfg linguist-language=INI
+.gitignore linguist-language=Git Ignore
+.gitattributes linguist-language=Git Attributes
+
+# Mark large files as vendored to exclude from language stats
+examples/audio/* linguist-vendored
+
+# =============================================================================
+# END OF GITATTRIBUTES
+# ============================================================================= 

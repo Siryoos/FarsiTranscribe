@@ -27,6 +27,22 @@ from ..utils.sentence_extractor import SentenceExtractor
 from ..utils.performance_monitor import performance_monitor
 from ..utils.audio_preprocessor import AudioPreprocessor, get_preprocessing_capabilities
 
+# Global worker function for multiprocessing (must be outside class)
+def transcribe_chunk_worker(chunk_data_and_config):
+    """Global worker function for multiprocessing."""
+    chunk_index, chunk_array, config_dict = chunk_data_and_config
+    
+    try:
+        # Recreate config from dict
+        config = TranscriptionConfig.from_dict(config_dict)
+        
+        # Create fresh transcriber instance
+        temp_transcriber = StandardWhisperTranscriber(config, shared_model=None)
+        result = temp_transcriber.transcribe_chunk(chunk_array)
+        return chunk_index, result
+    except Exception as e:
+        return chunk_index, ""
+
 # Global model instance for sharing across processes
 _global_model = None
 _model_lock = threading.Lock()
@@ -366,23 +382,7 @@ class UnifiedAudioTranscriber:
         else:
             self.shared_model = None
     
-    def _transcribe_chunk_worker_optimized(self, chunk_data: Tuple[int, np.ndarray]) -> Tuple[int, str]:
-        """Optimized worker function with shared model support."""
-        chunk_index, chunk_array = chunk_data
-        
-        try:
-            # Use shared model if available, otherwise create temporary
-            if self.shared_model is not None:
-                temp_transcriber = StandardWhisperTranscriber(self.config, self.shared_model)
-            else:
-                temp_transcriber = StandardWhisperTranscriber(self.config)
-            
-            result = temp_transcriber.transcribe_chunk(chunk_array)
-            return chunk_index, result
-        except Exception as e:
-            self.logger.error(f"Worker error on chunk {chunk_index}: {e}")
-            return chunk_index, ""
-    
+
     def _prepare_audio_chunks_parallel(self, audio: AudioSegment, chunks: List[Tuple[int, int]]) -> List[np.ndarray]:
         """Prepare audio chunks in parallel for better performance."""
         if not self.config.use_parallel_audio_prep:
@@ -507,9 +507,13 @@ class UnifiedAudioTranscriber:
                     for i in range(0, len(chunk_data), chunk_size):
                         batch = chunk_data[i:i + chunk_size]
                         
+                        # Prepare data for global worker function
+                        config_dict = self.config.to_dict()
+                        worker_data = [(chunk_index, chunk_array, config_dict) for chunk_index, chunk_array in batch]
+                        
                         # Process batch
                         batch_results = []
-                        for result in pool.imap_unordered(self._transcribe_chunk_worker_optimized, batch):
+                        for result in pool.imap_unordered(transcribe_chunk_worker, worker_data):
                             chunk_index, transcription = result
                             batch_results.append((chunk_index, transcription))
                             

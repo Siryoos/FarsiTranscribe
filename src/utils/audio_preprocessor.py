@@ -198,7 +198,12 @@ class AudioPreprocessor:
         try:
             # Target RMS level (adjust based on preference)
             target_rms_db = -20.0
-            current_rms_db = audio.rms_db if audio.rms_db is not None else -30.0
+            
+            # Get current RMS with fallback for older pydub versions
+            try:
+                current_rms_db = audio.rms_db if hasattr(audio, 'rms_db') else audio.dBFS
+            except:
+                current_rms_db = -30.0  # Fallback value
             
             # Calculate gain adjustment
             gain_adjustment = target_rms_db - current_rms_db

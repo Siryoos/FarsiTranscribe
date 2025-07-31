@@ -704,6 +704,27 @@ class UnifiedAudioTranscriber:
         print("🔄 Using streaming mode for memory efficiency...")
         
         try:
+            # First, analyze the audio to get chunk information
+            audio = AudioSegment.from_file(audio_file_path)
+            duration_ms = len(audio)
+            chunk_duration = self.config.chunk_duration_ms
+            overlap = self.config.overlap_ms
+            effective_chunk_duration = chunk_duration - overlap
+            
+            # Calculate total chunks
+            if duration_ms <= chunk_duration:
+                total_chunks = 1
+            else:
+                total_chunks = int((duration_ms - overlap) / effective_chunk_duration) + 1
+            
+            print(f"📊 Audio Analysis:")
+            print(f"   Duration: {duration_ms/1000:.1f} seconds")
+            print(f"   Total Chunks: {total_chunks}")
+            print(f"   Chunk Duration: {chunk_duration}ms ({chunk_duration/1000:.1f}s)")
+            print(f"   Overlap: {overlap}ms ({overlap/1000:.1f}s)")
+            print(f"   Effective Chunk Duration: {effective_chunk_duration}ms ({effective_chunk_duration/1000:.1f}s)")
+            print()
+            
             transcriptions = []
             chunk_count = 0
             
@@ -718,9 +739,9 @@ class UnifiedAudioTranscriber:
                 del chunk_array
                 self.memory_manager.cleanup()
                 
-                # Progress update
-                if chunk_count % 5 == 0:
-                    print(f"📊 Processed {chunk_count} chunks...")
+                # Progress update with chunk information
+                progress_percent = (chunk_count / total_chunks) * 100
+                print(f"📊 Progress: {chunk_count}/{total_chunks} chunks ({progress_percent:.1f}%)")
                 
                 # Preview for first few chunks
                 if self.config.enable_sentence_preview and chunk_count <= 3 and transcription.strip():
@@ -745,7 +766,7 @@ class UnifiedAudioTranscriber:
                 raise RuntimeError("Failed to save transcription")
             
             # Display results
-            print(f"\n✅ Streaming transcription completed: {chunk_count} chunks processed")
+            print(f"\n✅ Streaming transcription completed: {chunk_count}/{total_chunks} chunks processed")
             print(f"📄 Output saved to: {self.config.output_directory}")
             
             return final_transcription
@@ -766,6 +787,20 @@ class UnifiedAudioTranscriber:
             # Phase 2: Intelligent chunking
             print("🔄 Phase 2: Creating optimized segments...")
             chunks = self.audio_processor.create_chunks(audio)
+            
+            # Display chunk information
+            duration_ms = len(audio)
+            chunk_duration = self.config.chunk_duration_ms
+            overlap = self.config.overlap_ms
+            effective_chunk_duration = chunk_duration - overlap
+            
+            print(f"📊 Audio Analysis:")
+            print(f"   Duration: {duration_ms/1000:.1f} seconds")
+            print(f"   Total Chunks: {len(chunks)}")
+            print(f"   Chunk Duration: {chunk_duration}ms ({chunk_duration/1000:.1f}s)")
+            print(f"   Overlap: {overlap}ms ({overlap/1000:.1f}s)")
+            print(f"   Effective Chunk Duration: {effective_chunk_duration}ms ({effective_chunk_duration/1000:.1f}s)")
+            print()
             
             print(f"📊 Processing {len(chunks)} segments • Duration: {len(audio)/1000:.1f}s")
             

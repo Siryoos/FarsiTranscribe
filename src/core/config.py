@@ -54,6 +54,12 @@ class TranscriptionConfig:
     chunk_prefetch_count: int = 4
     memory_efficient_mode: bool = True
     
+    # Memory Management settings
+    memory_threshold_mb: int = 1024  # 1GB threshold for cleanup
+    cleanup_interval_seconds: int = 30  # Cleanup every 30 seconds
+    streaming_chunk_size_mb: int = 50  # 50MB chunks for streaming
+    enable_memory_monitoring: bool = True
+    
     # Audio Preprocessing settings (Quick Wins)
     enable_preprocessing: bool = True
     enable_noise_reduction: bool = True
@@ -155,6 +161,11 @@ class ConfigFactory:
             max_word_repetition=3,
             num_workers=6  # Increased from 2 to 6
         )
+        
+        if output_dir:
+            config.output_directory = output_dir
+            
+        return config
     @staticmethod
     def create_advanced_persian_config() -> TranscriptionConfig:
         """Create configuration with advanced Persian preprocessing."""
@@ -190,11 +201,6 @@ class ConfigFactory:
             enable_persian_optimization=True,
             adaptive_processing=True
         )
-        
-        if output_dir:
-            config.output_directory = output_dir
-            
-        return config
     
     @staticmethod
     def create_cpu_optimized_config() -> TranscriptionConfig:
@@ -216,7 +222,35 @@ class ConfigFactory:
             enable_sentence_preview=True,
             use_parallel_audio_prep=True,
             memory_efficient_mode=True,
-            chunk_prefetch_count=6
+            chunk_prefetch_count=6,
+            memory_threshold_mb=512,  # Lower threshold for CPU
+            cleanup_interval_seconds=20,  # More frequent cleanup
+            enable_memory_monitoring=True
+        )
+    
+    @staticmethod
+    def create_memory_optimized_config() -> TranscriptionConfig:
+        """Create memory-optimized configuration for systems with limited RAM."""
+        return TranscriptionConfig(
+            model_name="small",  # Smallest model for memory efficiency
+            device="cpu",
+            chunk_duration_ms=10000,  # Very small chunks
+            overlap_ms=50,
+            batch_size=1,
+            num_workers=min(2, os.cpu_count() or 1),  # Minimal parallelization
+            use_parallel_audio_prep=False,  # Disable parallel audio prep
+            memory_efficient_mode=True,
+            enable_preprocessing=False,  # Disable preprocessing to save memory
+            enable_noise_reduction=False,
+            enable_voice_activity_detection=False,
+            enable_speech_enhancement=False,
+            use_smart_chunking=False,  # Use simple chunking
+            adaptive_processing=False,
+            memory_threshold_mb=256,  # Very low threshold
+            cleanup_interval_seconds=10,  # Very frequent cleanup
+            streaming_chunk_size_mb=25,  # Small streaming chunks
+            enable_memory_monitoring=True,
+            enable_sentence_preview=False  # Disable preview to save memory
         )
     
     @staticmethod

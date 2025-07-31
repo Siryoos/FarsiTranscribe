@@ -1,217 +1,365 @@
 #!/usr/bin/env python3
 """
-Repository cleanup script for FarsiTranscribe.
-This script helps clean up files that should be ignored according to .gitignore.
+Cleanup script for FarsiTranscribe project.
+Removes unnecessary files, optimizes structure, and improves RAM efficiency.
 """
 
 import os
 import shutil
+import glob
 import sys
 from pathlib import Path
-from typing import List, Set
+import argparse
 
 
-class RepoCleaner:
-    """Repository cleanup utility."""
+class ProjectCleaner:
+    """Cleanup utility for the FarsiTranscribe project."""
     
-    def __init__(self, repo_path: str = "."):
-        self.repo_path = Path(repo_path).resolve()
-        self.ignored_patterns = self._load_gitignore_patterns()
-        self.files_to_remove = []
-        self.dirs_to_remove = []
+    def __init__(self, project_root: str):
+        self.project_root = Path(project_root)
+        self.removed_files = []
+        self.removed_dirs = []
         
-    def _load_gitignore_patterns(self) -> Set[str]:
-        """Load patterns from .gitignore file."""
-        gitignore_path = self.repo_path / ".gitignore"
-        patterns = set()
+    def cleanup_python_cache(self):
+        """Remove Python cache files."""
+        print("🧹 Cleaning Python cache files...")
         
-        if gitignore_path.exists():
-            with open(gitignore_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        # Remove comments
-                        if '#' in line:
-                            line = line.split('#')[0].strip()
-                        if line:
-                            patterns.add(line)
+        # Remove __pycache__ directories
+        for pycache_dir in self.project_root.rglob("__pycache__"):
+            try:
+                shutil.rmtree(pycache_dir)
+                self.removed_dirs.append(str(pycache_dir))
+                print(f"  Removed: {pycache_dir}")
+            except Exception as e:
+                print(f"  Error removing {pycache_dir}: {e}")
         
-        return patterns
+        # Remove .pyc files
+        for pyc_file in self.project_root.rglob("*.pyc"):
+            try:
+                pyc_file.unlink()
+                self.removed_files.append(str(pyc_file))
+                print(f"  Removed: {pyc_file}")
+            except Exception as e:
+                print(f"  Error removing {pyc_file}: {e}")
     
-    def _should_ignore(self, file_path: Path) -> bool:
-        """Check if a file should be ignored based on .gitignore patterns."""
-        rel_path = file_path.relative_to(self.repo_path)
-        rel_str = str(rel_path)
+    def cleanup_logs(self):
+        """Remove log files."""
+        print("🧹 Cleaning log files...")
         
-        for pattern in self.ignored_patterns:
-            if self._matches_pattern(rel_str, pattern):
-                return True
-        return False
-    
-    def _matches_pattern(self, path: str, pattern: str) -> bool:
-        """Check if a path matches a gitignore pattern."""
-        import fnmatch
+        log_patterns = [
+            "*.log",
+            "*.log.*",
+            "transcription.log",
+            "debug.log",
+            "error.log"
+        ]
         
-        # Handle directory patterns
-        if pattern.endswith('/'):
-            pattern = pattern[:-1]
-            if os.path.isdir(os.path.join(self.repo_path, path)):
-                return fnmatch.fnmatch(path, pattern)
-        
-        # Handle wildcard patterns
-        if '*' in pattern or '?' in pattern:
-            return fnmatch.fnmatch(path, pattern)
-        
-        # Exact match
-        return path == pattern
-    
-    def scan_for_ignored_files(self) -> None:
-        """Scan repository for files that should be ignored."""
-        print("🔍 Scanning repository for ignored files...")
-        
-        for root, dirs, files in os.walk(self.repo_path):
-            root_path = Path(root)
-            
-            # Check directories
-            for dir_name in dirs[:]:  # Copy list to modify during iteration
-                dir_path = root_path / dir_name
-                if self._should_ignore(dir_path):
-                    self.dirs_to_remove.append(dir_path)
-                    dirs.remove(dir_name)  # Don't traverse ignored directories
-            
-            # Check files
-            for file_name in files:
-                file_path = root_path / file_name
-                if self._should_ignore(file_path):
-                    self.files_to_remove.append(file_path)
-    
-    def print_summary(self) -> None:
-        """Print summary of files to be removed."""
-        print(f"\n📊 Cleanup Summary:")
-        print(f"   Files to remove: {len(self.files_to_remove)}")
-        print(f"   Directories to remove: {len(self.dirs_to_remove)}")
-        
-        if self.files_to_remove:
-            print(f"\n📄 Files to remove:")
-            for file_path in sorted(self.files_to_remove):
-                rel_path = file_path.relative_to(self.repo_path)
-                print(f"   - {rel_path}")
-        
-        if self.dirs_to_remove:
-            print(f"\n📁 Directories to remove:")
-            for dir_path in sorted(self.dirs_to_remove):
-                rel_path = dir_path.relative_to(self.repo_path)
-                print(f"   - {rel_path}")
-    
-    def cleanup(self, dry_run: bool = True) -> None:
-        """Perform the cleanup operation."""
-        if dry_run:
-            print(f"\n🔍 DRY RUN - No files will be actually removed")
-        else:
-            print(f"\n🗑️  PERFORMING CLEANUP")
-        
-        # Remove files
-        for file_path in self.files_to_remove:
-            rel_path = file_path.relative_to(self.repo_path)
-            if dry_run:
-                print(f"   Would remove: {rel_path}")
-            else:
+        for pattern in log_patterns:
+            for log_file in self.project_root.rglob(pattern):
                 try:
-                    file_path.unlink()
-                    print(f"   Removed: {rel_path}")
+                    log_file.unlink()
+                    self.removed_files.append(str(log_file))
+                    print(f"  Removed: {log_file}")
                 except Exception as e:
-                    print(f"   Error removing {rel_path}: {e}")
-        
-        # Remove directories (in reverse order to handle nested dirs)
-        for dir_path in sorted(self.dirs_to_remove, reverse=True):
-            rel_path = dir_path.relative_to(self.repo_path)
-            if dry_run:
-                print(f"   Would remove: {rel_path}")
-            else:
-                try:
-                    shutil.rmtree(dir_path)
-                    print(f"   Removed: {rel_path}")
-                except Exception as e:
-                    print(f"   Error removing {rel_path}: {e}")
+                    print(f"  Error removing {log_file}: {e}")
     
-    def get_repo_stats(self) -> dict:
-        """Get repository statistics."""
-        total_files = 0
-        total_dirs = 0
-        total_size = 0
+    def cleanup_temp_files(self):
+        """Remove temporary files."""
+        print("🧹 Cleaning temporary files...")
         
-        for root, dirs, files in os.walk(self.repo_path):
-            # Skip ignored directories
-            dirs[:] = [d for d in dirs if not self._should_ignore(Path(root) / d)]
-            
-            total_dirs += len(dirs)
-            
-            for file_name in files:
-                file_path = Path(root) / file_name
-                if not self._should_ignore(file_path):
-                    total_files += 1
+        temp_patterns = [
+            "*.tmp",
+            "*.temp",
+            "*.swp",
+            "*.swo",
+            "*~",
+            ".DS_Store",
+            "Thumbs.db"
+        ]
+        
+        for pattern in temp_patterns:
+            for temp_file in self.project_root.rglob(pattern):
+                try:
+                    temp_file.unlink()
+                    self.removed_files.append(str(temp_file))
+                    print(f"  Removed: {temp_file}")
+                except Exception as e:
+                    print(f"  Error removing {temp_file}: {e}")
+    
+    def cleanup_output_files(self, keep_recent: bool = True):
+        """Clean output directory while keeping recent files."""
+        print("🧹 Cleaning output directory...")
+        
+        output_dir = self.project_root / "output"
+        if not output_dir.exists():
+            print("  Output directory does not exist")
+            return
+        
+        # Keep only the most recent transcription files
+        if keep_recent:
+            transcription_files = list(output_dir.glob("*_transcription.txt"))
+            if len(transcription_files) > 3:
+                # Sort by modification time and keep only the 3 most recent
+                transcription_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                files_to_remove = transcription_files[3:]
+                
+                for file_path in files_to_remove:
                     try:
-                        total_size += file_path.stat().st_size
-                    except OSError:
-                        pass
+                        file_path.unlink()
+                        self.removed_files.append(str(file_path))
+                        print(f"  Removed old transcription: {file_path}")
+                    except Exception as e:
+                        print(f"  Error removing {file_path}: {e}")
         
-        return {
-            'files': total_files,
-            'directories': total_dirs,
-            'size_mb': total_size / (1024 * 1024)
-        }
+        # Remove all log files in output
+        for log_file in output_dir.glob("*.log"):
+            try:
+                log_file.unlink()
+                self.removed_files.append(str(log_file))
+                print(f"  Removed: {log_file}")
+            except Exception as e:
+                print(f"  Error removing {log_file}: {e}")
+    
+    def cleanup_data_directory(self):
+        """Clean data directory of temporary files."""
+        print("🧹 Cleaning data directory...")
+        
+        data_dir = self.project_root / "data"
+        if not data_dir.exists():
+            print("  Data directory does not exist")
+            return
+        
+        # Remove temporary audio files
+        temp_audio_patterns = [
+            "temp_*.wav",
+            "temp_*.mp3",
+            "temp_*.m4a",
+            "processed_*.wav",
+            "chunk_*.wav"
+        ]
+        
+        for pattern in temp_audio_patterns:
+            for temp_file in data_dir.rglob(pattern):
+                try:
+                    temp_file.unlink()
+                    self.removed_files.append(str(temp_file))
+                    print(f"  Removed: {temp_file}")
+                except Exception as e:
+                    print(f"  Error removing {temp_file}: {e}")
+    
+    def optimize_requirements(self):
+        """Optimize requirements.txt for RAM efficiency."""
+        print("🔧 Optimizing requirements.txt...")
+        
+        requirements_file = self.project_root / "requirements.txt"
+        if not requirements_file.exists():
+            print("  Requirements.txt not found")
+            return
+        
+        # Read current requirements
+        with open(requirements_file, 'r') as f:
+            lines = f.readlines()
+        
+        # Create optimized requirements
+        optimized_lines = []
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                optimized_lines.append(line)
+                continue
+            
+            # Add memory optimization comments
+            if 'torch' in line:
+                optimized_lines.append("# Core ML framework - use CPU version for memory efficiency")
+                optimized_lines.append(line)
+            elif 'whisper' in line:
+                optimized_lines.append("# Core transcription model")
+                optimized_lines.append(line)
+            elif 'numpy' in line:
+                optimized_lines.append("# Numerical computing - essential for audio processing")
+                optimized_lines.append(line)
+            elif 'pydub' in line:
+                optimized_lines.append("# Audio processing - lightweight alternative to librosa")
+                optimized_lines.append(line)
+            elif 'librosa' in line:
+                optimized_lines.append("# Advanced audio processing - can be disabled for memory efficiency")
+                optimized_lines.append(line)
+            elif 'noisereduce' in line:
+                optimized_lines.append("# Noise reduction - optional for memory efficiency")
+                optimized_lines.append(line)
+            else:
+                optimized_lines.append(line)
+        
+        # Add memory optimization section
+        optimized_lines.extend([
+            "",
+            "# Memory Optimization Tips:",
+            "# 1. Use --quality memory-optimized for low RAM systems",
+            "# 2. Consider using CPU-only torch: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu",
+            "# 3. Disable optional dependencies for minimal memory usage",
+            "# 4. Use smaller Whisper models (tiny, base, small) for memory efficiency"
+        ])
+        
+        # Write optimized requirements
+        with open(requirements_file, 'w') as f:
+            f.write('\n'.join(optimized_lines))
+        
+        print("  Requirements.txt optimized for memory efficiency")
+    
+    def create_memory_optimization_guide(self):
+        """Create a memory optimization guide."""
+        print("📝 Creating memory optimization guide...")
+        
+        guide_content = """# Memory Optimization Guide for FarsiTranscribe
+
+## Quick Memory Optimization
+
+### 1. Use Memory-Optimized Preset
+```bash
+python main.py audio_file.m4a --quality memory-optimized
+```
+
+### 2. Use Smaller Models
+- `tiny`: ~39MB RAM, fastest, lowest quality
+- `base`: ~74MB RAM, fast, good quality
+- `small`: ~244MB RAM, balanced
+- `medium`: ~769MB RAM, high quality
+- `large-v3`: ~1550MB RAM, highest quality
+
+### 3. CPU-Only Installation (Saves GPU Memory)
+```bash
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+
+### 4. Minimal Dependencies Installation
+```bash
+pip install openai-whisper torch torchaudio pydub numpy tqdm
+```
+
+## Advanced Memory Management
+
+### 1. Streaming Mode
+The system automatically uses streaming mode for files >100MB or when `memory_efficient_mode=True`.
+
+### 2. Chunk Size Optimization
+- Smaller chunks = less memory per chunk
+- Larger chunks = fewer processing steps
+- Balance based on available RAM
+
+### 3. Parallel Processing Control
+- Reduce `num_workers` for lower memory usage
+- Disable `use_parallel_audio_prep` for sequential processing
+
+### 4. Preprocessing Control
+- Disable `enable_preprocessing` for minimal memory usage
+- Disable `enable_noise_reduction` to save memory
+- Disable `enable_speech_enhancement` for faster processing
+
+## Memory Usage by Configuration
+
+| Configuration | Model Size | RAM Usage | Speed | Quality |
+|---------------|------------|-----------|-------|---------|
+| memory-optimized | small | ~300MB | Fast | Good |
+| cpu-optimized | medium | ~800MB | Medium | High |
+| balanced | large-v3 | ~1600MB | Slow | Best |
+| high | large-v3 | ~2000MB | Slow | Best |
+
+## Troubleshooting High Memory Usage
+
+1. **Monitor Memory**: Use `--quality memory-optimized` with monitoring
+2. **Close Other Apps**: Free up system RAM before transcription
+3. **Use SSD**: Ensure sufficient disk space for temporary files
+4. **Restart**: Restart the application between large files
+
+## Environment Variables for Memory Control
+
+```bash
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+export CUDA_LAUNCH_BLOCKING=1
+```
+
+## Performance vs Memory Trade-offs
+
+- **Speed**: Use smaller models, disable preprocessing
+- **Quality**: Use larger models, enable all preprocessing
+- **Memory**: Use streaming mode, smaller chunks, fewer workers
+- **Balance**: Use `--quality balanced` for optimal trade-offs
+"""
+        
+        guide_file = self.project_root / "MEMORY_OPTIMIZATION.md"
+        with open(guide_file, 'w') as f:
+            f.write(guide_content)
+        
+        print(f"  Memory optimization guide created: {guide_file}")
+    
+    def cleanup_all(self, keep_recent_outputs: bool = True):
+        """Perform all cleanup operations."""
+        print("🚀 Starting comprehensive project cleanup...")
+        print("=" * 60)
+        
+        self.cleanup_python_cache()
+        print()
+        
+        self.cleanup_logs()
+        print()
+        
+        self.cleanup_temp_files()
+        print()
+        
+        self.cleanup_output_files(keep_recent_outputs)
+        print()
+        
+        self.cleanup_data_directory()
+        print()
+        
+        self.optimize_requirements()
+        print()
+        
+        self.create_memory_optimization_guide()
+        print()
+        
+        # Summary
+        print("=" * 60)
+        print("✅ Cleanup completed!")
+        print(f"📁 Removed {len(self.removed_files)} files")
+        print(f"📂 Removed {len(self.removed_dirs)} directories")
+        
+        if self.removed_files:
+            print("\nRemoved files:")
+            for file_path in self.removed_files[:10]:  # Show first 10
+                print(f"  - {file_path}")
+            if len(self.removed_files) > 10:
+                print(f"  ... and {len(self.removed_files) - 10} more files")
+        
+        if self.removed_dirs:
+            print("\nRemoved directories:")
+            for dir_path in self.removed_dirs:
+                print(f"  - {dir_path}")
+        
+        print("\n💡 Memory optimization tips:")
+        print("  - Use '--quality memory-optimized' for low RAM systems")
+        print("  - Consider CPU-only torch installation")
+        print("  - Check MEMORY_OPTIMIZATION.md for detailed guide")
 
 
 def main():
-    """Main function."""
-    print("🧹 FarsiTranscribe Repository Cleanup")
-    print("=" * 50)
+    """Main cleanup function."""
+    parser = argparse.ArgumentParser(description="Clean up FarsiTranscribe project")
+    parser.add_argument(
+        "--project-root",
+        default=".",
+        help="Project root directory (default: current directory)"
+    )
+    parser.add_argument(
+        "--remove-all-outputs",
+        action="store_true",
+        help="Remove all output files (default: keep recent ones)"
+    )
     
-    # Parse command line arguments
-    dry_run = True
-    if len(sys.argv) > 1 and sys.argv[1] == '--execute':
-        dry_run = False
+    args = parser.parse_args()
     
-    # Initialize cleaner
-    cleaner = RepoCleaner()
-    
-    # Get initial stats
-    initial_stats = cleaner.get_repo_stats()
-    print(f"📊 Initial repository stats:")
-    print(f"   Files: {initial_stats['files']}")
-    print(f"   Directories: {initial_stats['directories']}")
-    print(f"   Size: {initial_stats['size_mb']:.2f} MB")
-    
-    # Scan for ignored files
-    cleaner.scan_for_ignored_files()
-    
-    # Print summary
-    cleaner.print_summary()
-    
-    # Perform cleanup
-    if cleaner.files_to_remove or cleaner.dirs_to_remove:
-        response = input(f"\n❓ Proceed with cleanup? (y/N): ").strip().lower()
-        if response in ['y', 'yes']:
-            cleaner.cleanup(dry_run=dry_run)
-            
-            if not dry_run:
-                # Get final stats
-                final_stats = cleaner.get_repo_stats()
-                print(f"\n📊 Final repository stats:")
-                print(f"   Files: {final_stats['files']}")
-                print(f"   Directories: {final_stats['directories']}")
-                print(f"   Size: {final_stats['size_mb']:.2f} MB")
-                print(f"   Space saved: {initial_stats['size_mb'] - final_stats['size_mb']:.2f} MB")
-        else:
-            print("❌ Cleanup cancelled.")
-    else:
-        print("✅ No files to clean up!")
-    
-    print("\n💡 Tips:")
-    print("   - Run with --execute flag to actually remove files")
-    print("   - Use 'git status' to see what files are tracked")
-    print("   - Use 'git add .' to stage remaining files")
-    print("   - Use 'git commit' to commit the cleaned repository")
+    cleaner = ProjectCleaner(args.project_root)
+    cleaner.cleanup_all(keep_recent_outputs=not args.remove_all_outputs)
 
 
 if __name__ == "__main__":

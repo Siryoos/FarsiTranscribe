@@ -1,12 +1,19 @@
 # Core transcription dependencies
+# Core transcription model
 openai-whisper>=20231117
+# Core ML framework - use CPU version for memory efficiency
 torch>=2.0.0
+# Core ML framework - use CPU version for memory efficiency
 torchaudio>=2.0.0
 
 # Audio processing
+# Audio processing - lightweight alternative to librosa
 pydub>=0.25.1
+# Numerical computing - essential for audio processing
 numpy>=1.21.0
+# Advanced audio processing - can be disabled for memory efficiency
 librosa>=0.10.0
+# Noise reduction - optional for memory efficiency
 noisereduce>=3.0.0
 webrtcvad>=2.0.10
 scipy>=1.9.0
@@ -37,4 +44,10 @@ certifi>=2023.0.0
 
 # Development and debugging (optional)
 # ipython>=8.0.0
-# jupyter>=1.0.0 
+# jupyter>=1.0.0
+
+# Memory Optimization Tips:
+# 1. Use --quality memory-optimized for low RAM systems
+# 2. Consider using CPU-only torch: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+# 3. Disable optional dependencies for minimal memory usage
+# 4. Use smaller Whisper models (tiny, base, small) for memory efficiency

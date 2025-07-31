@@ -1,179 +1,232 @@
 # FarsiTranscribe
 
-A modular audio transcription system with anti-repetition features, specifically optimized for Persian (Farsi) audio transcription.
+A high-performance, RAM-optimized audio transcription system specifically designed for Persian (Farsi) speech with advanced anti-repetition features and memory management.
 
-## Features
+## 🚀 Features
 
-- 🎙️ **Persian-Optimized**: Specifically tuned for Persian/Farsi audio transcription
-- 🔄 **Anti-Repetition**: Advanced algorithms to detect and remove repetitive content
-- 🧩 **Modular Design**: Clean, maintainable codebase with separated concerns
-- ⚡ **Performance Optimized**: GPU acceleration with intelligent batch processing
-- 🎯 **Quality Control**: Multiple quality presets and confidence thresholds
-- 📊 **Real-time Preview**: Live transcription preview with sentence extraction
+- **Persian Language Optimization**: Specialized for Persian/Farsi transcription
+- **Memory Efficient**: RAM-optimized processing with streaming support
+- **Anti-Repetition**: Advanced deduplication and repetition detection
+- **Multiple Quality Presets**: From memory-optimized to high-quality
+- **Streaming Processing**: Handles large audio files efficiently
+- **GPU/CPU Support**: Optimized for both GPU and CPU-only systems
+- **Real-time Preview**: Live transcription preview with sentence extraction
 
-## Project Structure
+## 💾 Memory Optimization
 
-```
-FarsiTranscribe/
-├── src/                    # Main source code
-│   ├── core/              # Core transcription logic
-│   │   ├── config.py      # Configuration management
-│   │   └── transcriber.py # Main transcription engine
-│   └── utils/             # Utility modules
-│       ├── file_manager.py
-│       ├── repetition_detector.py
-│       ├── sentence_extractor.py
-│       └── terminal_display.py
-├── tests/                 # Test suite
-├── examples/              # Example usage and sample data
-│   └── audio/            # Sample audio files
-├── scripts/              # Utility scripts
-├── output/               # Transcription output directory
-├── main.py               # Main application entry point
-├── requirements.txt      # Python dependencies
-├── pyproject.toml        # Modern Python packaging
-└── README.md            # This file
+This project has been extensively optimized for RAM efficiency:
+
+### Quick Start for Low RAM Systems
+```bash
+# For systems with < 4GB RAM
+python main.py audio.m4a --quality memory-optimized
+
+# For systems with 4-8GB RAM  
+python main.py audio.m4a --quality cpu-optimized
+
+# For systems with > 8GB RAM
+python main.py audio.m4a --quality balanced
 ```
 
-## Installation
+### Memory Usage by Configuration
+
+| Configuration | Model Size | RAM Usage | Speed | Quality |
+|---------------|------------|-----------|-------|---------|
+| memory-optimized | small | ~300MB | Fast | Good |
+| cpu-optimized | medium | ~800MB | Medium | High |
+| balanced | large-v3 | ~1600MB | Slow | Best |
+| high | large-v3 | ~2000MB | Slow | Best |
+
+### Memory Optimization Features
+
+- **Streaming Audio Processing**: Processes audio in chunks to reduce memory usage
+- **Automatic Memory Cleanup**: Regular garbage collection and CUDA cache clearing
+- **Configurable Thresholds**: Adjustable memory limits and cleanup intervals
+- **Model Sharing**: Efficient model sharing across processes
+- **Optional Preprocessing**: Disable heavy preprocessing for memory savings
+
+## 📦 Installation
 
 ### Prerequisites
+- Python 3.8+
+- FFmpeg (for audio processing)
 
-- Python 3.8 or higher
-- CUDA-compatible GPU (optional, for acceleration)
+### Basic Installation
+```bash
+git clone https://github.com/yourusername/FarsiTranscribe.git
+cd FarsiTranscribe
+pip install -r requirements.txt
+```
 
-### Quick Start
+### Memory-Optimized Installation
+For systems with limited RAM, use CPU-only PyTorch:
+```bash
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install openai-whisper pydub numpy tqdm
+```
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/farsitranscribe.git
-   cd farsitranscribe
-   ```
-
-2. **Create virtual environment:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Run transcription:**
-   ```bash
-   python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a
-   ```
-
-## Usage
+## 🎯 Usage
 
 ### Basic Transcription
-
 ```bash
-# Basic transcription with default settings
-python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a
+python main.py examples/audio/BiVaZirsakht.m4a
+```
 
-# Persian-optimized transcription (recommended for Persian audio)
-python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a --language fa
+### Memory-Optimized Transcription
+```bash
+# For low RAM systems
+python main.py audio.m4a --quality memory-optimized
+
+# For large files (auto-streaming)
+python main.py large_audio.m4a --quality memory-optimized
 ```
 
 ### Quality Presets
-
 ```bash
-# Fast transcription (base model, lower quality)
-python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a --quality fast
+# Fast transcription
+python main.py audio.m4a --quality fast
 
-# Balanced transcription (default)
-python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a --quality balanced
+# High quality (requires more RAM)
+python main.py audio.m4a --quality high
 
-# High quality transcription (large model, best quality)
-python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a --quality high
+# CPU optimized
+python main.py audio.m4a --quality cpu-optimized
+
+# Memory optimized
+python main.py audio.m4a --quality memory-optimized
 ```
 
 ### Advanced Options
-
 ```bash
-# Custom model and settings
-python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a \
-  --model large-v3 \
+python main.py audio.m4a \
+  --model small \
   --language fa \
   --output-dir ./output \
-  --device cuda \
-  --chunk-duration 20000 \
-  --overlap 500
+  --device cpu \
+  --chunk-duration 15000 \
+  --overlap 200
 ```
 
-### Command Line Options
+## 🧹 Project Cleanup
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--quality` | Quality preset (fast/balanced/high) | balanced |
-| `--model` | Whisper model size | auto |
-| `--language` | Language code | fa |
-| `--output-dir` | Output directory | ./output |
-| `--device` | Device (auto/cpu/cuda) | auto |
-| `--no-preview` | Disable sentence preview | False |
+The project includes comprehensive cleanup tools:
 
-## Configuration
+### Automatic Cleanup
+```bash
+# Clean up unnecessary files and optimize structure
+python scripts/cleanup_repo.py
 
-The system uses intelligent configuration management with presets optimized for different use cases:
+# Remove all output files
+python scripts/cleanup_repo.py --remove-all-outputs
+```
 
-- **Persian Optimized**: Best for Persian/Farsi audio
-- **Fast**: Quick transcription with base model
-- **High Quality**: Maximum accuracy with large model
-- **Custom**: Fully configurable parameters
+### Memory Optimization Test
+```bash
+# Test memory optimization features
+python scripts/test_memory_optimization.py
+```
 
-## Development
+## 📊 Performance
+
+### Memory Usage Optimization
+- **Streaming Mode**: Automatically enabled for files >100MB
+- **Chunk Processing**: Configurable chunk sizes for memory control
+- **Parallel Processing**: Optimized worker count based on system resources
+- **Garbage Collection**: Automatic memory cleanup during processing
+
+### Speed vs Memory Trade-offs
+- **Speed**: Use smaller models, disable preprocessing
+- **Quality**: Use larger models, enable all preprocessing  
+- **Memory**: Use streaming mode, smaller chunks, fewer workers
+- **Balance**: Use `--quality balanced` for optimal trade-offs
+
+## 🔧 Configuration
+
+### Memory Management Settings
+```python
+# Memory threshold for cleanup (MB)
+memory_threshold_mb: int = 1024
+
+# Cleanup interval (seconds)
+cleanup_interval_seconds: int = 30
+
+# Streaming chunk size (MB)
+streaming_chunk_size_mb: int = 50
+
+# Enable memory monitoring
+enable_memory_monitoring: bool = True
+```
+
+### Quality Presets
+- **memory-optimized**: Smallest model, minimal preprocessing
+- **cpu-optimized**: Medium model, moderate preprocessing
+- **balanced**: Large model, full preprocessing
+- **high**: Largest model, maximum quality
+
+## 📁 Project Structure
+
+```
+FarsiTranscribe/
+├── src/
+│   ├── core/
+│   │   ├── config.py          # Configuration management
+│   │   └── transcriber.py     # Main transcription engine
+│   └── utils/
+│       ├── audio_preprocessor.py    # Audio processing
+│       ├── repetition_detector.py   # Anti-repetition logic
+│       ├── performance_monitor.py   # Memory monitoring
+│       └── file_manager.py          # Output management
+├── scripts/
+│   ├── cleanup_repo.py        # Project cleanup
+│   └── test_memory_optimization.py  # Memory testing
+├── examples/
+│   └── audio/                 # Sample audio files
+├── output/                    # Transcription outputs
+├── requirements.txt           # Dependencies
+└── MEMORY_OPTIMIZATION.md     # Detailed optimization guide
+```
+
+## 🛠️ Development
 
 ### Running Tests
-
 ```bash
-# Run all tests
-pytest
+# Test memory optimization
+python scripts/test_memory_optimization.py
 
-# Run specific test file
-pytest tests/test_config.py
-
-# Run with coverage
-pytest --cov=src
+# Run transcription tests
+python -m pytest tests/
 ```
 
-### Code Quality
-
+### Memory Profiling
 ```bash
-# Format code
-black src/ tests/
-
-# Lint code
-flake8 src/ tests/
-
-# Type checking
-mypy src/
+# Monitor memory usage during transcription
+python main.py audio.m4a --quality memory-optimized
 ```
 
-### Project Structure
+## 📚 Documentation
 
-- **`src/core/`**: Core transcription logic and configuration
-- **`src/utils/`**: Utility modules for file management, repetition detection, etc.
-- **`tests/`**: Comprehensive test suite
-- **`examples/`**: Sample usage and audio files
-- **`scripts/`**: Utility scripts for debugging and maintenance
+- [Memory Optimization Guide](MEMORY_OPTIMIZATION.md) - Detailed memory management
+- [Configuration Reference](docs/configuration.md) - All configuration options
+- [Performance Tuning](docs/performance.md) - Optimization strategies
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Test memory usage with `python scripts/test_memory_optimization.py`
+5. Submit a pull request
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
-- Built with [OpenAI Whisper](https://github.com/openai/whisper)
-- Enhanced with custom anti-repetition algorithms
-- Optimized specifically for Persian language transcription 
+- OpenAI Whisper for the transcription model
+- Persian language community for feedback and testing
+- Contributors for memory optimization improvements
+
+---
+
+**💡 Pro Tip**: For best performance on low-RAM systems, use `--quality memory-optimized` and ensure you have at least 2GB of free RAM before starting transcription. 

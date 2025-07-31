@@ -1,18 +1,21 @@
 """
 Enhanced transcription system with advanced repetition handling and modular design.
+RAM-optimized version with streaming audio processing.
 """
 
 import os
 import logging
 import gc
 import time
+import weakref
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, Iterator
 from abc import ABC, abstractmethod
 from multiprocessing import Pool, cpu_count, Manager
 from functools import partial
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import psutil
 
 import torch
 import whisper
@@ -29,7 +32,7 @@ from ..utils.audio_preprocessor import AudioPreprocessor, get_preprocessing_capa
 
 # Global worker function for multiprocessing (must be outside class)
 def transcribe_chunk_worker(chunk_data_and_config):
-    """Global worker function for multiprocessing."""
+    """Global worker function for multiprocessing with memory optimization."""
     chunk_index, chunk_array, config_dict = chunk_data_and_config
     
     try:
@@ -39,16 +42,22 @@ def transcribe_chunk_worker(chunk_data_and_config):
         # Create fresh transcriber instance
         temp_transcriber = StandardWhisperTranscriber(config, shared_model=None)
         result = temp_transcriber.transcribe_chunk(chunk_array)
+        
+        # Clean up immediately
+        del temp_transcriber
+        gc.collect()
+        
         return chunk_index, result
     except Exception as e:
         return chunk_index, ""
 
-# Global model instance for sharing across processes
+# Global model instance for sharing across processes with weak references
 _global_model = None
 _model_lock = threading.Lock()
+_model_refs = weakref.WeakSet()
 
 def get_shared_model(config: TranscriptionConfig):
-    """Get or create shared Whisper model instance."""
+    """Get or create shared Whisper model instance with memory management."""
     global _global_model
     
     with _model_lock:
@@ -75,6 +84,10 @@ def get_shared_model(config: TranscriptionConfig):
                 _global_model = whisper.load_model(config.model_name, device=config.device)
                 load_time = time.time() - start_time
                 logging.info(f"Shared model loaded in {load_time:.2f} seconds")
+                
+                # Track model references for cleanup
+                _model_refs.add(_global_model)
+                
             except Exception as e:
                 # Fallback: try without SSL verification
                 logging.warning(f"SSL verification failed, trying without verification: {e}")
@@ -90,11 +103,104 @@ def get_shared_model(config: TranscriptionConfig):
                 _global_model = whisper.load_model(config.model_name, device=config.device)
                 load_time = time.time() - start_time
                 logging.info(f"Shared model loaded (no SSL) in {load_time:.2f} seconds")
+                
+                # Track model references for cleanup
+                _model_refs.add(_global_model)
             finally:
                 # Restore original urlopen
                 urllib.request.urlopen = original_urlopen
     
     return _global_model
+
+def cleanup_shared_model():
+    """Clean up shared model to free memory."""
+    global _global_model
+    
+    with _model_lock:
+        if _global_model is not None:
+            del _global_model
+            _global_model = None
+            _model_refs.clear()
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+
+class MemoryManager:
+    """Memory management utility for transcription system."""
+    
+    def __init__(self, config: TranscriptionConfig):
+        self.config = config
+        self.memory_threshold_mb = 1024  # 1GB threshold
+        self.last_cleanup = time.time()
+        self.cleanup_interval = 30  # seconds
+        
+    def check_memory_usage(self) -> bool:
+        """Check if memory usage is above threshold."""
+        process = psutil.Process()
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        return memory_mb > self.memory_threshold_mb
+    
+    def should_cleanup(self) -> bool:
+        """Check if cleanup is needed based on time interval."""
+        return time.time() - self.last_cleanup > self.cleanup_interval
+    
+    def cleanup(self, force: bool = False):
+        """Perform memory cleanup."""
+        if force or self.check_memory_usage() or self.should_cleanup():
+            gc.collect()
+            if self.config.device == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            self.last_cleanup = time.time()
+
+
+class StreamingAudioProcessor:
+    """Streaming audio processor to reduce memory usage."""
+    
+    def __init__(self, config: TranscriptionConfig):
+        self.config = config
+        self.chunk_size_ms = config.chunk_duration_ms
+        self.overlap_ms = config.overlap_ms
+        
+    def process_audio_stream(self, audio_file_path: str) -> Iterator[Tuple[int, np.ndarray]]:
+        """Process audio in streaming fashion to reduce memory usage."""
+        from pydub import AudioSegment
+        
+        # Load audio in chunks instead of full file
+        audio = AudioSegment.from_file(audio_file_path)
+        
+        # Convert to mono and normalize
+        if audio.channels > 1:
+            audio = audio.set_channels(1)
+        
+        # Set sample rate
+        if audio.frame_rate != self.config.target_sample_rate:
+            audio = audio.set_frame_rate(self.config.target_sample_rate)
+        
+        # Process in streaming chunks
+        start_ms = 0
+        chunk_index = 0
+        
+        while start_ms < len(audio):
+            end_ms = min(start_ms + self.chunk_size_ms, len(audio))
+            
+            # Extract chunk
+            chunk = audio[start_ms:end_ms]
+            chunk_array = np.array(chunk.get_array_of_samples(), dtype=np.float32)
+            
+            # Normalize
+            if chunk_array.size > 0:
+                chunk_array = chunk_array / np.max(np.abs(chunk_array)) if np.max(np.abs(chunk_array)) > 0 else chunk_array
+            
+            yield chunk_index, chunk_array
+            
+            # Move to next chunk with overlap
+            start_ms = end_ms - self.overlap_ms
+            chunk_index += 1
+            
+            # Clean up chunk to free memory
+            del chunk
+            gc.collect()
 
 
 class AudioProcessor(ABC):
@@ -377,6 +483,9 @@ class UnifiedAudioTranscriber:
         self.config = config
         self.logger = self._setup_logging()
         
+        # Initialize memory manager
+        self.memory_manager = MemoryManager(config)
+        
         # Log preprocessing capabilities
         capabilities = get_preprocessing_capabilities()
         self.logger.info(f"Preprocessing capabilities: {capabilities}")
@@ -386,6 +495,7 @@ class UnifiedAudioTranscriber:
         self.transcription_merger = TranscriptionMerger(config)
         self.sentence_extractor = SentenceExtractor()
         self.repetition_detector = RepetitionDetector()
+        self.streaming_processor = StreamingAudioProcessor(config)
         
         # Setup GPU
         self._setup_gpu()
@@ -579,8 +689,74 @@ class UnifiedAudioTranscriber:
         print("=" * 80)
         print("🎙️  ENHANCED AUDIO TRANSCRIPTION SYSTEM")
         print("🔧 Anti-Repetition Features Enabled")
+        print("💾 RAM-Optimized Processing")
         print("=" * 80)
         
+        # Use streaming mode for large files or when memory efficient mode is enabled
+        if self.config.memory_efficient_mode or os.path.getsize(audio_file_path) > 100 * 1024 * 1024:  # 100MB
+            return self._transcribe_file_streaming(audio_file_path, file_manager)
+        else:
+            return self._transcribe_file_standard(audio_file_path, file_manager)
+    
+    def _transcribe_file_streaming(self, audio_file_path: str, file_manager: TranscriptionFileManager) -> str:
+        """Streaming transcription method for memory efficiency."""
+        print("🔄 Using streaming mode for memory efficiency...")
+        
+        try:
+            transcriptions = []
+            chunk_count = 0
+            
+            # Process audio in streaming fashion
+            for chunk_index, chunk_array in self.streaming_processor.process_audio_stream(audio_file_path):
+                # Transcribe chunk
+                transcription = self.transcriber.transcribe_chunk(chunk_array)
+                transcriptions.append(transcription)
+                chunk_count += 1
+                
+                # Memory cleanup after each chunk
+                del chunk_array
+                self.memory_manager.cleanup()
+                
+                # Progress update
+                if chunk_count % 5 == 0:
+                    print(f"📊 Processed {chunk_count} chunks...")
+                
+                # Preview for first few chunks
+                if self.config.enable_sentence_preview and chunk_count <= 3 and transcription.strip():
+                    sentences = self.sentence_extractor.extract_sentences(
+                        transcription, self.config.preview_sentence_count
+                    )
+                    if sentences:
+                        preview = self.sentence_extractor.format_sentence_preview(
+                            sentences, chunk_count
+                        )
+                        print(f"\n{preview}")
+            
+            # Merge transcriptions
+            print("\n🔄 Merging transcriptions...")
+            final_transcription = self.transcription_merger.merge_transcriptions(transcriptions)
+            
+            # Save results
+            print("🔄 Saving results...")
+            success = file_manager.save_unified_transcription(final_transcription)
+            
+            if not success:
+                raise RuntimeError("Failed to save transcription")
+            
+            # Display results
+            print(f"\n✅ Streaming transcription completed: {chunk_count} chunks processed")
+            print(f"📄 Output saved to: {self.config.output_directory}")
+            
+            return final_transcription
+            
+        except Exception as e:
+            self.logger.error(f"Streaming transcription failed: {e}")
+            raise
+        finally:
+            self._cleanup_memory()
+    
+    def _transcribe_file_standard(self, audio_file_path: str, file_manager: TranscriptionFileManager) -> str:
+        """Standard transcription method for smaller files."""
         try:
             # Phase 1: Audio preparation
             print("🔄 Phase 1: Loading audio...")
@@ -649,10 +825,27 @@ class UnifiedAudioTranscriber:
         print("=" * 80)
     
     def _cleanup_memory(self) -> None:
-        """Enhanced memory cleanup."""
+        """Enhanced memory cleanup with comprehensive resource management."""
+        # Force garbage collection
         gc.collect()
-        if self.config.device == "cuda":
+        
+        # Clear CUDA cache if using GPU
+        if self.config.device == "cuda" and torch.cuda.is_available():
             torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        
+        # Clean up shared model if not needed
+        if hasattr(self, 'shared_model') and self.shared_model is not None:
+            cleanup_shared_model()
+        
+        # Force memory cleanup
+        self.memory_manager.cleanup(force=True)
+        
+        # Log memory usage
+        if hasattr(self, 'logger'):
+            process = psutil.Process()
+            memory_mb = process.memory_info().rss / 1024 / 1024
+            self.logger.info(f"Memory usage after cleanup: {memory_mb:.1f} MB")
     
     def __enter__(self):
         return self

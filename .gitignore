@@ -284,11 +284,8 @@ exports/
 *.f4a
 *.f4b
 
-# Keep example audio files
-!examples/audio/*.wav
-!examples/audio/*.mp3
-!examples/audio/*.m4a
-!examples/audio/*.flac
+# Ignore all files in examples/audio directory
+examples/audio/*
 
 # Transcription output files
 *_unified_transcription.txt

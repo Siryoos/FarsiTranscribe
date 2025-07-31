@@ -31,25 +31,48 @@ class TranscriptionHooks:
     """
     
     def __init__(self):
+        """
+        Initialize hook lists for pre/post chunk and pre/post merge stages in the transcription process.
+        """
         self.pre_chunk_hooks: List[Callable] = []
         self.post_chunk_hooks: List[Callable] = []
         self.pre_merge_hooks: List[Callable] = []
         self.post_merge_hooks: List[Callable] = []
     
     def add_pre_chunk_hook(self, hook: Callable):
-        """Add a hook to run before processing each chunk."""
+        """
+        Register a callback to be executed before processing each audio chunk.
+        
+        Parameters:
+            hook (Callable): A function to be called with the audio chunk before processing.
+        """
         self.pre_chunk_hooks.append(hook)
     
     def add_post_chunk_hook(self, hook: Callable):
-        """Add a hook to run after processing each chunk."""
+        """
+        Register a callback to be executed after processing each audio chunk.
+        
+        Parameters:
+            hook (Callable): A function to be called with the chunk result after each chunk is processed.
+        """
         self.post_chunk_hooks.append(hook)
     
     def add_pre_merge_hook(self, hook: Callable):
-        """Add a hook to run before merging results."""
+        """
+        Register a callback to be executed before merging transcription chunk results.
+        
+        Parameters:
+            hook (Callable): A function to be called with the list of chunk results before merging.
+        """
         self.pre_merge_hooks.append(hook)
     
     def add_post_merge_hook(self, hook: Callable):
-        """Add a hook to run after merging results."""
+        """
+        Register a callback to be executed after merging transcription results.
+        
+        Parameters:
+            hook (Callable): A function to be called with the merged transcription text after merging is complete.
+        """
         self.post_merge_hooks.append(hook)
 
 
@@ -64,10 +87,10 @@ class FarsiTranscriber:
     
     def __init__(self, config: TranscriptionConfig):
         """
-        Initialize the transcriber with given configuration.
+        Initialize the FarsiTranscriber with the specified configuration, setting up audio and text processors, model, and hooks for extensibility.
         
-        Args:
-            config: TranscriptionConfig object containing all settings
+        Parameters:
+            config (TranscriptionConfig): Configuration object specifying model, language, sample rate, and other transcription settings.
         """
         self.config = config
         self.hooks = TranscriptionHooks()
@@ -85,7 +108,9 @@ class FarsiTranscriber:
         logger.info(f"FarsiTranscriber initialized with model: {config.model_name}")
     
     def _init_model(self):
-        """Initialize the Whisper model based on configuration."""
+        """
+        Loads the Whisper model specified in the configuration onto the configured device, applying half-precision if enabled for CUDA.
+        """
         logger.info(f"Loading Whisper model: {self.config.model_name}")
         
         # Load model
@@ -102,13 +127,15 @@ class FarsiTranscriber:
     
     def transcribe_file(self, audio_path: Path) -> TranscriptionResult:
         """
-        Transcribe an audio file.
+        Transcribes a complete audio file and returns the transcription result with metadata.
         
-        Args:
-            audio_path: Path to the audio file
-            
+        Processes the audio by loading, chunking, transcribing each chunk, merging results, and applying optional Persian text normalization. Returns a `TranscriptionResult` containing the final transcript, chunk details, and processing metadata.
+        
+        Parameters:
+            audio_path (Path): Path to the audio file to be transcribed.
+        
         Returns:
-            TranscriptionResult object containing transcription and metadata
+            TranscriptionResult: The transcription output, including text, chunk-level results, and metadata.
         """
         start_time = time.time()
         audio_path = Path(audio_path)
@@ -153,16 +180,13 @@ class FarsiTranscriber:
     
     def transcribe_stream(self, audio_path: Path) -> TranscriptionResult:
         """
-        Transcribe audio using streaming approach for large files.
+        Transcribes an audio file using a streaming approach, processing and transcribing each chunk sequentially to handle large files efficiently.
         
-        Note: Currently loads the entire file to extract metadata. True streaming
-        with metadata extraction from file headers is planned for future versions.
+        Parameters:
+            audio_path (Path): Path to the audio file to be transcribed.
         
-        Args:
-            audio_path: Path to the audio file
-            
         Returns:
-            TranscriptionResult object
+            TranscriptionResult: The final transcription result, including merged text, chunk details, and metadata.
         """
         start_time = time.time()
         chunk_results = []
@@ -218,7 +242,15 @@ class FarsiTranscriber:
         return result
     
     def _process_chunks(self, chunks: List[AudioChunk]) -> List[Dict[str, Any]]:
-        """Process a list of audio chunks."""
+        """
+        Processes a list of audio chunks sequentially and returns their transcription results.
+        
+        Parameters:
+            chunks (List[AudioChunk]): List of audio chunks to be transcribed.
+        
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing transcription results for each chunk.
+        """
         results = []
         
         # Progress bar
@@ -234,7 +266,15 @@ class FarsiTranscriber:
         return results
     
     def _process_single_chunk(self, chunk: AudioChunk) -> Dict[str, Any]:
-        """Process a single audio chunk."""
+        """
+        Processes a single audio chunk through the transcription model and applies registered pre- and post-processing hooks.
+        
+        Parameters:
+            chunk (AudioChunk): The audio chunk to be transcribed.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the transcribed text, timing, chunk index, segments, and detected language.
+        """
         # Run pre-chunk hooks
         for hook in self.hooks.pre_chunk_hooks:
             chunk = hook(chunk)
@@ -271,7 +311,17 @@ class FarsiTranscriber:
         return chunk_result
     
     def _merge_results(self, chunk_results: List[Dict[str, Any]]) -> str:
-        """Merge chunk results into final text."""
+        """
+        Merge the transcribed texts from all audio chunks into a single final transcription string.
+        
+        Runs pre-merge and post-merge hooks for extensibility. Chunks are sorted by their original order, and only non-empty texts are included in the merged result. Extra spaces are removed from the final output.
+        
+        Parameters:
+            chunk_results (List[Dict[str, Any]]): List of dictionaries containing transcription results for each audio chunk.
+        
+        Returns:
+            str: The merged transcription text.
+        """
         # Run pre-merge hooks
         for hook in self.hooks.pre_merge_hooks:
             chunk_results = hook(chunk_results)
@@ -299,7 +349,9 @@ class FarsiTranscriber:
         return merged_text
     
     def _manage_memory(self):
-        """Manage memory usage during processing."""
+        """
+        Performs periodic memory cleanup by triggering garbage collection and clearing the CUDA cache after a configured number of processed chunks.
+        """
         if self._chunks_processed % self.config.clear_cache_every == 0:
             gc.collect()
             if self.config.device == "cuda":
@@ -308,32 +360,36 @@ class FarsiTranscriber:
     
     def add_extension(self, extension):
         """
-        Add an extension to the transcriber.
+        Installs an extension that can add hooks or modify the transcriber's behavior.
         
-        Extensions can add hooks and modify behavior without changing core code.
-        
-        Args:
-            extension: Extension object with install() method
+        The extension must provide an `install()` method, which will be called with the transcriber instance.
         """
         extension.install(self)
         logger.info(f"Extension installed: {extension.__class__.__name__}")
     
     def set_model(self, model_name: str):
         """
-        Change the model being used.
+        Switches the Whisper model to the specified model name and reinitializes the model accordingly.
         
-        Args:
-            model_name: Name of the new model to load
+        Parameters:
+            model_name (str): The name of the new Whisper model to load.
         """
         self.config.model_name = model_name
         self._init_model()
     
     def __enter__(self):
-        """Context manager entry."""
+        """
+        Enter the context manager for the transcriber, enabling resource management with a `with` statement.
+        
+        Returns:
+            FarsiTranscriber: The current instance for use within the context.
+        """
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - cleanup resources."""
+        """
+        Performs resource cleanup when exiting the context manager, including garbage collection and clearing the CUDA cache if applicable.
+        """
         gc.collect()
         if self.config.device == "cuda":
             torch.cuda.empty_cache()

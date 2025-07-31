@@ -16,7 +16,9 @@ from .utils import TranscriptionManager
 
 
 def setup_logging(verbose: bool = False):
-    """Configure logging based on verbosity level."""
+    """
+    Configures logging to output messages to both stdout and a log file, using DEBUG level if verbose is True, otherwise INFO.
+    """
     level = logging.DEBUG if verbose else logging.INFO
     
     logging.basicConfig(
@@ -30,7 +32,12 @@ def setup_logging(verbose: bool = False):
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """Create and configure argument parser."""
+    """
+    Create and configure the argument parser for the FarsiTranscribe CLI.
+    
+    Returns:
+        argparse.ArgumentParser: An argument parser pre-configured with options for audio file input, preset and model selection, language, chunking, device choice, output formats and directory, Persian text normalization, streaming mode, and verbosity controls.
+    """
     parser = argparse.ArgumentParser(
         prog='farsi-transcribe',
         description='FarsiTranscribe - Efficient Persian/Farsi Audio Transcription',
@@ -134,7 +141,15 @@ Presets:
 
 
 def get_config_from_args(args) -> TranscriptionConfig:
-    """Create configuration from command-line arguments."""
+    """
+    Constructs a TranscriptionConfig object based on the selected preset and overrides its attributes with command-line arguments.
+    
+    Parameters:
+        args: Parsed command-line arguments containing preset selection and optional overrides.
+    
+    Returns:
+        TranscriptionConfig: The finalized configuration for the transcription process.
+    """
     # Start with preset
     preset_map = {
         'fast': ConfigPresets.fast,
@@ -181,7 +196,11 @@ def get_config_from_args(args) -> TranscriptionConfig:
 
 
 def print_banner(config: TranscriptionConfig, audio_file: Path, quiet: bool = False):
-    """Print startup banner with configuration info."""
+    """
+    Display a startup banner summarizing the transcription configuration and input audio file details.
+    
+    Skips output if quiet mode is enabled.
+    """
     if quiet:
         return
     
@@ -198,7 +217,16 @@ def print_banner(config: TranscriptionConfig, audio_file: Path, quiet: bool = Fa
 
 
 def print_results(result, saved_files, quiet: bool = False):
-    """Print transcription results and summary."""
+    """
+    Display a summary of the transcription results, including duration, processing time, real-time factor, character and word counts, output file locations, and a preview of the transcribed text.
+    
+    Skips output if quiet mode is enabled.
+    
+    Parameters:
+        result: The transcription result object containing text and metadata.
+        saved_files: A dictionary mapping output format names to their file paths.
+        quiet (bool): If True, suppresses all output.
+    """
     if quiet:
         return
     
@@ -224,7 +252,14 @@ def print_results(result, saved_files, quiet: bool = False):
 
 
 def main(argv: Optional[list] = None):
-    """Main entry point for CLI."""
+    """
+    Runs the FarsiTranscribe command-line interface, handling argument parsing, configuration, transcription execution, result saving, and user feedback.
+    
+    Parameters:
+        argv (Optional[list]): List of command-line arguments to parse. If None, uses sys.argv.
+    
+    This function sets up logging, validates the input audio file, constructs the transcription configuration, and manages the transcription process. It supports both streaming and file-based transcription modes, saves results in specified formats, and prints summaries unless quiet mode is enabled. Handles user interruption and errors by logging and exiting with an error status.
+    """
     parser = create_parser()
     args = parser.parse_args(argv)
     

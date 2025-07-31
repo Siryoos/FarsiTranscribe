@@ -17,7 +17,11 @@ from farsi_transcribe.utils import TranscriptionManager
 
 
 def example_basic_transcription():
-    """Basic transcription with default settings."""
+    """
+    Performs basic transcription of a sample MP3 audio file using default balanced settings.
+    
+    If the sample audio file exists, transcribes it, prints summary information, and saves the transcription text to an output file. If the file is missing, prints a notification.
+    """
     print("Example 1: Basic Transcription")
     print("-" * 40)
     
@@ -42,7 +46,11 @@ def example_basic_transcription():
 
 
 def example_persian_optimized():
-    """Persian-optimized transcription with high quality."""
+    """
+    Performs high-quality transcription of a Persian audio file using a Persian-optimized configuration and saves the results in multiple formats.
+    
+    This example demonstrates customizing output directory and diacritics removal, transcribing a sample Farsi speech file, and saving the transcription as text, JSON, and segment files. Prints the paths of the saved files.
+    """
     print("\nExample 2: Persian-Optimized Transcription")
     print("-" * 40)
     
@@ -72,7 +80,11 @@ def example_persian_optimized():
 
 
 def example_memory_efficient():
-    """Memory-efficient transcription for large files."""
+    """
+    Demonstrates memory-efficient streaming transcription of a large audio file using the FarsiTranscribe library.
+    
+    Uses a memory-optimized configuration with periodic cache clearing to transcribe a long audio file in streaming mode. Prints the duration of transcribed audio in minutes or notifies if the file is missing.
+    """
     print("\nExample 3: Memory-Efficient Transcription")
     print("-" * 40)
     
@@ -92,7 +104,11 @@ def example_memory_efficient():
 
 
 def example_custom_configuration():
-    """Custom configuration example."""
+    """
+    Demonstrates how to create and use a custom transcription configuration with specific parameters for Farsi audio transcription.
+    
+    This example sets up a `TranscriptionConfig` with a medium model, Persian language, custom chunking, CPU device, normalization, output formats, and memory limit, then instantiates a transcriber with this configuration.
+    """
     print("\nExample 4: Custom Configuration")
     print("-" * 40)
     
@@ -119,7 +135,11 @@ def example_custom_configuration():
 
 
 def example_with_extension():
-    """Example using custom extension."""
+    """
+    Demonstrates how to use a custom extension with FarsiTranscriber to log chunk processing during transcription.
+    
+    Defines a `LoggingExtension` that logs the start and end of each audio chunk processed. Instantiates a transcriber with a fast preset, adds the extension, and transcribes a sample audio file if present, printing the total word count of the transcription.
+    """
     print("\nExample 5: Using Extensions")
     print("-" * 40)
     
@@ -128,14 +148,35 @@ def example_with_extension():
         """Extension that logs chunk processing."""
         
         def install(self, transcriber):
+            """
+            Installs logging hooks on the transcriber to log information before and after processing each audio chunk.
+            
+            Parameters:
+                transcriber: The transcriber instance to which the logging hooks will be attached.
+            """
             transcriber.hooks.add_pre_chunk_hook(self.log_chunk_start)
             transcriber.hooks.add_post_chunk_hook(self.log_chunk_end)
         
         def log_chunk_start(self, chunk):
+            """
+            Logs the start of processing for a transcription chunk, displaying its index and duration.
+            
+            Returns:
+                chunk: The same chunk object that was passed in.
+            """
             print(f"  Processing chunk {chunk.index} ({chunk.duration:.1f}s)")
             return chunk
         
         def log_chunk_end(self, result):
+            """
+            Logs the completion of a transcription chunk and its word count.
+            
+            Parameters:
+                result (dict): A dictionary containing the chunk's transcription result, including 'text' and 'index' keys.
+            
+            Returns:
+                dict: The original result dictionary.
+            """
             words = len(result['text'].split())
             print(f"  Chunk {result['index']} completed: {words} words")
             return result
@@ -153,7 +194,11 @@ def example_with_extension():
 
 
 def example_batch_processing():
-    """Batch processing multiple files."""
+    """
+    Transcribes all MP3 audio files in a specified directory and saves the results in multiple formats.
+    
+    For each audio file, attempts transcription using a balanced preset configuration, saves the output as text and JSON, and generates a summary. Errors encountered during processing are reported for each file.
+    """
     print("\nExample 6: Batch Processing")
     print("-" * 40)
     
@@ -191,7 +236,9 @@ def example_batch_processing():
 
 
 def main():
-    """Run all examples."""
+    """
+    Runs all FarsiTranscribe usage example functions sequentially, ensuring the output directory exists and printing progress messages.
+    """
     print("FarsiTranscribe - Usage Examples")
     print("=" * 60)
     

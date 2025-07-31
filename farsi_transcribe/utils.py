@@ -29,45 +29,81 @@ class TranscriptionResult:
     
     @property
     def duration(self) -> float:
-        """Get audio duration in seconds."""
+        """
+        Returns the audio duration in seconds from the transcription metadata.
+        
+        Returns:
+            float: Audio duration in seconds, or 0.0 if not available.
+        """
         return self.metadata.get('duration_seconds', 0.0)
     
     @property
     def processing_time(self) -> float:
-        """Get processing time in seconds."""
+        """
+        Returns the processing time in seconds from the transcription metadata.
+        
+        Returns:
+            float: Processing time in seconds, or 0.0 if not available.
+        """
         return self.metadata.get('processing_time', 0.0)
     
     @property
     def real_time_factor(self) -> float:
-        """Calculate real-time factor (processing_time / audio_duration)."""
+        """
+        Compute the ratio of processing time to audio duration for the transcription.
+        
+        Returns:
+            float: The real-time factor, or 0.0 if the audio duration is zero.
+        """
         if self.duration > 0:
             return self.processing_time / self.duration
         return 0.0
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary."""
+        """
+        Convert the TranscriptionResult instance to a dictionary representation.
+        
+        Returns:
+            dict: A dictionary containing all fields and values of the transcription result.
+        """
         return asdict(self)
     
     def to_json(self, indent: int = 2) -> str:
-        """Convert to JSON string."""
+        """
+        Serialize the transcription result to a JSON-formatted string.
+        
+        Parameters:
+            indent (int): Number of spaces to use for indentation in the output JSON string.
+        
+        Returns:
+            str: The JSON representation of the transcription result.
+        """
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=indent)
     
     def save_text(self, output_path: Path):
-        """Save transcription text to file."""
+        """
+        Saves the transcribed text to a UTF-8 encoded file at the specified path, creating parent directories if necessary.
+        """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(self.text, encoding='utf-8')
         logger.info(f"Saved transcription text to: {output_path}")
     
     def save_json(self, output_path: Path):
-        """Save complete result as JSON."""
+        """
+        Save the entire transcription result as a JSON file at the specified path, creating parent directories if necessary.
+        """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(self.to_json(), encoding='utf-8')
         logger.info(f"Saved transcription JSON to: {output_path}")
     
     def save_segments(self, output_path: Path):
-        """Save transcription with timestamps as segments."""
+        """
+        Save the transcription chunks to a file, formatting each as a segment with start and end timestamps.
+        
+        Each line in the output file represents a chunk in the format: "[start_time - end_time] text". The file is saved with UTF-8 encoding, and parent directories are created if they do not exist.
+        """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -92,6 +128,12 @@ class TextProcessor:
     """
     
     def __init__(self, language: str = 'fa'):
+        """
+        Initialize a TextProcessor for Persian text normalization and cleaning.
+        
+        Parameters:
+        	language (str): Language code for processing, defaults to 'fa' (Farsi/Persian).
+        """
         self.language = language
         
         # Persian-specific characters and replacements
@@ -109,13 +151,13 @@ class TextProcessor:
     
     def normalize_persian(self, text: str) -> str:
         """
-        Normalize Persian text by replacing Arabic characters with Persian equivalents.
+        Replaces Arabic characters and digits in the input text with their Persian equivalents and normalizes whitespace.
         
-        Args:
-            text: Input text
-            
+        Parameters:
+            text (str): The input text to normalize.
+        
         Returns:
-            Normalized text
+            str: The normalized Persian text.
         """
         if not text:
             return text
@@ -131,26 +173,26 @@ class TextProcessor:
     
     def remove_diacritics(self, text: str) -> str:
         """
-        Remove Arabic diacritical marks from text.
+        Remove Arabic diacritical marks from the given text.
         
-        Args:
-            text: Input text
-            
+        Parameters:
+            text (str): The input text to process.
+        
         Returns:
-            Text without diacritics
+            str: The text with all Arabic diacritics removed.
         """
         return self.diacritics.sub('', text)
     
     def clean_text(self, text: str, remove_diacritics: bool = False) -> str:
         """
-        Clean and normalize text.
+        Cleans and normalizes Persian text by standardizing characters, optionally removing diacritics, and normalizing whitespace.
         
-        Args:
-            text: Input text
-            remove_diacritics: Whether to remove diacritical marks
-            
+        Parameters:
+            text (str): The input text to be cleaned.
+            remove_diacritics (bool): If True, removes Arabic diacritical marks from the text.
+        
         Returns:
-            Cleaned text
+            str: The cleaned and normalized text.
         """
         # Normalize Persian characters
         text = self.normalize_persian(text)
@@ -169,13 +211,13 @@ class TextProcessor:
     
     def segment_sentences(self, text: str) -> List[str]:
         """
-        Split text into sentences.
+        Splits Persian text into sentences using common sentence delimiters.
         
-        Args:
-            text: Input text
-            
+        Parameters:
+            text (str): The input Persian text to segment.
+        
         Returns:
-            List of sentences
+            List[str]: A list of sentences, each ending with its delimiter if present.
         """
         # Persian sentence delimiters
         delimiters = r'[.!?؟।۔]'
@@ -209,10 +251,9 @@ class TranscriptionManager:
     
     def __init__(self, output_directory: Path):
         """
-        Initialize the transcription manager.
+        Initialize a TranscriptionManager to handle output file operations in the specified directory.
         
-        Args:
-            output_directory: Base directory for output files
+        The output directory is created if it does not already exist.
         """
         self.output_directory = Path(output_directory)
         self.output_directory.mkdir(parents=True, exist_ok=True)
@@ -222,16 +263,16 @@ class TranscriptionManager:
                    base_name: str,
                    formats: List[str]) -> Dict[str, Path]:
         """
-        Save transcription result in specified formats.
-        
-        Args:
-            result: TranscriptionResult object
-            base_name: Base filename without extension
-            formats: List of formats ('txt', 'json', 'segments')
-            
-        Returns:
-            Dictionary mapping format to output path
-        """
+                   Save a transcription result to the output directory in one or more specified formats.
+                   
+                   Parameters:
+                       result (TranscriptionResult): The transcription result to save.
+                       base_name (str): The base filename (without extension) for output files.
+                       formats (List[str]): List of formats to save ('txt', 'json', 'segments').
+                   
+                   Returns:
+                       Dict[str, Path]: A dictionary mapping each saved format to its corresponding output file path.
+                   """
         saved_files = {}
         
         if 'txt' in formats:
@@ -253,13 +294,13 @@ class TranscriptionManager:
     
     def create_summary(self, result: TranscriptionResult) -> str:
         """
-        Create a summary of the transcription result.
+        Generate a formatted summary string containing key statistics and metadata from a transcription result.
         
-        Args:
-            result: TranscriptionResult object
-            
+        Parameters:
+            result (TranscriptionResult): The transcription result to summarize.
+        
         Returns:
-            Summary string
+            str: A multi-line string summarizing audio duration, processing time, real-time factor, model name, number of chunks, and text statistics.
         """
         summary = f"""
 Transcription Summary
@@ -276,14 +317,14 @@ Total Words: {len(result.text.split())}
     
     def save_summary(self, result: TranscriptionResult, base_name: str) -> Path:
         """
-        Save transcription summary to file.
+        Save a textual summary of the transcription result to a file in the output directory.
         
-        Args:
-            result: TranscriptionResult object
-            base_name: Base filename
-            
+        Parameters:
+            result (TranscriptionResult): The transcription result to summarize.
+            base_name (str): The base filename for the summary file.
+        
         Returns:
-            Path to summary file
+            Path: The path to the saved summary file.
         """
         summary_path = self.output_directory / f"{base_name}_summary.txt"
         summary = self.create_summary(result)

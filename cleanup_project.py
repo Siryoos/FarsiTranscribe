@@ -73,13 +73,29 @@ TO_KEEP = {
 
 
 def confirm_action(message: str) -> bool:
-    """Ask user for confirmation."""
+    """
+    Prompt the user with a confirmation message and return True if the response is 'y'.
+    
+    Parameters:
+        message (str): The confirmation message to display.
+    
+    Returns:
+        bool: True if the user confirms with 'y' (case-insensitive), otherwise False.
+    """
     response = input(f"{message} [y/N]: ").lower().strip()
     return response == 'y'
 
 
 def cleanup_project(dry_run: bool = True, force: bool = False):
-    """Clean up the project structure."""
+    """
+    Removes obsolete files and directories from the project according to predefined patterns, supporting dry run and forced execution modes.
+    
+    Parameters:
+        dry_run (bool): If True, lists files and directories to be removed without deleting them. Defaults to True.
+        force (bool): If True, skips user confirmation before deletion. Defaults to False.
+    
+    This function identifies files and directories to remove based on the `TO_REMOVE` set, displays what will be deleted and the total size to be freed, and optionally deletes them. After cleanup, it prints the remaining project structure.
+    """
     root = Path.cwd()
     
     print("🧹 FarsiTranscribe Project Cleanup")
@@ -169,7 +185,11 @@ def cleanup_project(dry_run: bool = True, force: bool = False):
 
 
 def create_gitignore():
-    """Create or update .gitignore file."""
+    """
+    Create or overwrite the .gitignore file in the current directory with standard Python and project-specific ignore patterns.
+    
+    This function writes a predefined set of rules to .gitignore, ensuring that common Python build artifacts, virtual environments, IDE files, OS files, logs, audio files (except those in examples), and temporary files are ignored by version control.
+    """
     gitignore_content = """# Python
 __pycache__/
 *.py[cod]
@@ -239,7 +259,11 @@ farsi_transcribe.log
 
 
 def main():
-    """Main entry point."""
+    """
+    Parses command-line arguments and orchestrates the cleanup and .gitignore update operations for the FarsiTranscribe project.
+    
+    Handles dry-run mode, forced deletion, and .gitignore creation based on user-specified flags.
+    """
     parser = argparse.ArgumentParser(
         description="Clean up FarsiTranscribe project structure"
     )

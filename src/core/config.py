@@ -154,6 +154,7 @@ class ConfigFactory:
             repetition_threshold=0.8,
             max_word_repetition=3,
             num_workers=6  # Increased from 2 to 6
+        )
     @staticmethod
     def create_advanced_persian_config() -> TranscriptionConfig:
         """Create configuration with advanced Persian preprocessing."""

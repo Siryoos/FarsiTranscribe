@@ -120,6 +120,7 @@ FarsiTranscribe/
 ### For Existing Users:
 - **Main entry point**: Still `python main.py` (unchanged)
 - **Persian transcription**: Use `python main.py --language fa` (was `transcribe_persian.py`)
+- **Sample audio file**: Use `python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a`
 - **Configuration**: All existing configurations remain compatible
 
 ### For Developers:

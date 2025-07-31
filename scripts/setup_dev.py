@@ -122,7 +122,7 @@ def print_next_steps():
     print("   source venv/bin/activate  # On Unix/macOS")
     print("   venv\\Scripts\\activate     # On Windows")
     print("\n2. Run the transcription system:")
-    print("   python main.py examples/audio/your_audio_file.wav")
+    print("   python main.py examples/audio/jalase\\ bi\\ va\\ zirsakht.m4a")
     print("\n3. Run tests:")
     print("   pytest tests/")
     print("\n4. Format code:")

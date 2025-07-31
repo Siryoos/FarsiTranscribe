@@ -21,16 +21,16 @@ def create_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   # Basic transcription
-  python main.py audio_file.wav
+  python main.py examples/audio/jalase\\ bi\\ va\\ zirsakht.m4a
   
   # High quality transcription
-  python main.py audio_file.wav --quality high
+  python main.py examples/audio/jalase\\ bi\\ va\\ zirsakht.m4a --quality high
   
   # Fast transcription
-  python main.py audio_file.wav --quality fast
+  python main.py examples/audio/jalase\\ bi\\ va\\ zirsakht.m4a --quality fast
   
   # Custom configuration
-  python main.py audio_file.wav --model large-v3 --language fa --output-dir ./output
+  python main.py examples/audio/jalase\\ bi\\ va\\ zirsakht.m4a --model large-v3 --language fa --output-dir ./output
         """
     )
     

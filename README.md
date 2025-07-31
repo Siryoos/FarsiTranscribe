@@ -63,7 +63,7 @@ FarsiTranscribe/
 
 4. **Run transcription:**
    ```bash
-   python main.py path/to/your/audio/file.wav
+   python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a
    ```
 
 ## Usage
@@ -72,30 +72,30 @@ FarsiTranscribe/
 
 ```bash
 # Basic transcription with default settings
-python main.py audio_file.wav
+python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a
 
 # Persian-optimized transcription (recommended for Persian audio)
-python main.py audio_file.wav --language fa
+python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a --language fa
 ```
 
 ### Quality Presets
 
 ```bash
 # Fast transcription (base model, lower quality)
-python main.py audio_file.wav --quality fast
+python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a --quality fast
 
 # Balanced transcription (default)
-python main.py audio_file.wav --quality balanced
+python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a --quality balanced
 
 # High quality transcription (large model, best quality)
-python main.py audio_file.wav --quality high
+python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a --quality high
 ```
 
 ### Advanced Options
 
 ```bash
 # Custom model and settings
-python main.py audio_file.wav \
+python main.py examples/audio/jalase\ bi\ va\ zirsakht.m4a \
   --model large-v3 \
   --language fa \
   --output-dir ./output \

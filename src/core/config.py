@@ -25,7 +25,7 @@ class TranscriptionConfig:
     # Processing settings
     device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")
     batch_size: int = field(default_factory=lambda: TranscriptionConfig._get_optimal_batch_size())
-    num_workers: int = 16
+    num_workers: int = field(default_factory=lambda: min(16, os.cpu_count() or 4))
     
     # Output settings
     output_directory: str = field(default_factory=lambda: os.getcwd())
@@ -146,6 +146,7 @@ class ConfigFactory:
             chunk_duration_ms=30000,
             overlap_ms=100,
             batch_size=4,
+            num_workers=min(16, os.cpu_count() or 4),
             enable_sentence_preview=False
         )
     
@@ -156,6 +157,7 @@ class ConfigFactory:
             model_name="large-v3",
             chunk_duration_ms=15000,
             overlap_ms=300,
+            num_workers=min(16, os.cpu_count() or 4,2),
             repetition_threshold=0.9,
             max_word_repetition=1,
             min_chunk_confidence=0.8

@@ -1,4 +1,4 @@
- """
+"""
 Enhanced transcription system with advanced repetition handling and modular design.
 """
 
@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 from abc import ABC, abstractmethod
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 import torch
 import whisper
@@ -118,9 +120,28 @@ class StandardWhisperTranscriber(WhisperTranscriber):
         try:
             self.logger.info(f"Loading Whisper {self.config.model_name} model...")
             
+            # Disable SSL verification for model download
+            import ssl
+            import urllib.request
+            
+            # Create SSL context that doesn't verify certificates
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
+            # Monkey patch urllib to use our SSL context
+            original_urlopen = urllib.request.urlopen
+            def urlopen_without_ssl(*args, **kwargs):
+                kwargs['context'] = ssl_context
+                return original_urlopen(*args, **kwargs)
+            urllib.request.urlopen = urlopen_without_ssl
+            
             start_time = time.time()
             self.model = whisper.load_model(self.config.model_name, device=self.config.device)
             load_time = time.time() - start_time
+            
+            # Restore original urlopen
+            urllib.request.urlopen = original_urlopen
             
             if self.config.device == "cuda":
                 self.model = self.model.to(self.config.device)
@@ -247,6 +268,23 @@ class UnifiedAudioTranscriber:
         
         # Setup GPU
         self._setup_gpu()
+        
+        # Set up multiprocessing
+        self.num_workers = min(self.config.num_workers, cpu_count())
+        self.logger.info(f"Using {self.num_workers} CPU cores for parallel processing")
+    
+    def _transcribe_chunk_worker(self, chunk_data: Tuple[int, np.ndarray]) -> Tuple[int, str]:
+        """Worker function for parallel chunk transcription."""
+        chunk_index, chunk_array = chunk_data
+        
+        try:
+            # Create a temporary transcriber for this worker
+            temp_transcriber = StandardWhisperTranscriber(self.config)
+            result = temp_transcriber.transcribe_chunk(chunk_array)
+            return chunk_index, result
+        except Exception as e:
+            self.logger.error(f"Worker error on chunk {chunk_index}: {e}")
+            return chunk_index, ""
     
     def _setup_logging(self) -> logging.Logger:
         """Configure comprehensive logging for performance monitoring."""
@@ -309,55 +347,42 @@ class UnifiedAudioTranscriber:
                     audio_arrays.append(np.array([]))
                     prep_bar.update(1)
         
-        # Process in batches
-        batch_size = self.config.batch_size
-        total_batches = (len(audio_arrays) + batch_size - 1) // batch_size
+        # Prepare chunk data for parallel processing
+        chunk_data = [(i, chunk_array) for i, chunk_array in enumerate(audio_arrays)]
         
-        print(f"🚀 Processing {len(chunks)} chunks in {total_batches} batches")
+        print(f"🚀 Processing {len(chunks)} chunks using {self.num_workers} CPU cores")
         
-        with tqdm(total=len(chunks), desc="🎵 Transcribing", unit="chunk") as main_pbar:
-            
-            for batch_num, i in enumerate(range(0, len(audio_arrays), batch_size), 1):
-                batch = audio_arrays[i:i + batch_size]
+        # Use multiprocessing for parallel transcription
+        with Pool(processes=self.num_workers) as pool:
+            with tqdm(total=len(chunks), desc="🎵 Transcribing", unit="chunk") as main_pbar:
                 
-                main_pbar.set_description(f"🎵 Batch {batch_num}/{total_batches}")
-                
-                try:
-                    # Process batch
-                    for j, chunk_array in enumerate(batch):
-                        chunk_index = i + j
-                        result = self.whisper_transcriber.transcribe_chunk(chunk_array)
-                        all_transcriptions.append(result)
-                        
-                        # Enhanced preview with repetition detection
-                        if self.config.enable_sentence_preview and result.strip():
-                            sentences = self.sentence_extractor.extract_sentences(
-                                result, self.config.preview_sentence_count
+                # Process chunks in parallel
+                results = []
+                for result in pool.imap_unordered(self._transcribe_chunk_worker, chunk_data):
+                    chunk_index, transcription = result
+                    results.append((chunk_index, transcription))
+                    
+                    # Enhanced preview with repetition detection
+                    if self.config.enable_sentence_preview and transcription.strip():
+                        sentences = self.sentence_extractor.extract_sentences(
+                            transcription, self.config.preview_sentence_count
+                        )
+                        if sentences:
+                            preview = self.sentence_extractor.format_sentence_preview(
+                                sentences, chunk_index + 1
                             )
-                            if sentences:
-                                preview = self.sentence_extractor.format_sentence_preview(
-                                    sentences, chunk_index + 1
-                                )
-                                print(f"\n{preview}")
-                        
-                        main_pbar.update(1)
-                        main_pbar.set_postfix({
-                            'GPU': '✓' if self.config.device == "cuda" else '✗',
-                            'Processed': f"{len(all_transcriptions)}/{len(chunks)}",
-                            'Non-empty': f"{sum(1 for r in all_transcriptions if r.strip())}"
-                        })
+                            print(f"\n{preview}")
+                    
+                    main_pbar.update(1)
+                    main_pbar.set_postfix({
+                        'Cores': f'{self.num_workers}',
+                        'Processed': f"{len(results)}/{len(chunks)}",
+                        'Non-empty': f"{sum(1 for _, r in results if r.strip())}"
+                    })
                 
-                except Exception as e:
-                    self.logger.error(f"Batch {batch_num} error: {e}")
-                    batch_results = [""] * len(batch)
-                    all_transcriptions.extend(batch_results)
-                    main_pbar.update(len(batch))
-                
-                # Memory cleanup
-                if batch_num % 4 == 0:
-                    gc.collect()
-                    if self.config.device == "cuda":
-                        torch.cuda.empty_cache()
+                # Sort results by chunk index to maintain order
+                results.sort(key=lambda x: x[0])
+                all_transcriptions = [transcription for _, transcription in results]
         
         return all_transcriptions
     

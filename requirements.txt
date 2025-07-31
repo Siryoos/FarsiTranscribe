@@ -1,0 +1,18 @@
+# Core transcription dependencies
+openai-whisper>=20231117
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# Audio processing
+pydub>=0.25.1
+numpy>=1.21.0
+
+# Progress tracking and utilities
+tqdm>=4.64.0
+
+# Optional: For better audio processing (if not using pydub)
+# librosa>=0.10.0
+
+# Development and debugging (optional)
+# ipython>=8.0.0
+# jupyter>=1.0.0 

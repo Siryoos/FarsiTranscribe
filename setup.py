@@ -1,29 +1,23 @@
-#!/usr/bin/env python3
 """
-Setup script for FarsiTranscribe package.
+Setup configuration for FarsiTranscribe package.
 """
 
 from setuptools import setup, find_packages
 from pathlib import Path
 
-# Read the README file
-this_directory = Path(__file__).parent
-long_description = (this_directory / "README.md").read_text(encoding="utf-8")
-
-# Read requirements
-requirements = []
-with open("requirements.txt", "r", encoding="utf-8") as f:
-    requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+# Read README for long description
+readme_path = Path(__file__).parent / "README.md"
+long_description = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
 
 setup(
-    name="farsitranscribe",
-    version="1.0.0",
+    name="farsi-transcribe",
+    version="2.0.0",
     author="FarsiTranscribe Team",
-    author_email="contact@farsitranscribe.com",
-    description="A modular audio transcription system with anti-repetition features for Persian (Farsi)",
+    author_email="your.email@example.com",
+    description="A clean, efficient, and extensible audio transcription system optimized for Persian/Farsi language",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/farsitranscribe",
+    url="https://github.com/yourusername/FarsiTranscribe",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -36,45 +30,55 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Topic :: Multimedia :: Sound/Audio :: Speech",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
-        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Multimedia :: Sound/Audio :: Speech",
+        "Natural Language :: Persian",
     ],
     python_requires=">=3.8",
-    install_requires=requirements,
+    install_requires=[
+        "openai-whisper>=20230918",
+        "torch>=2.0.0",
+        "torchaudio>=2.0.0",
+        "numpy>=1.24.0",
+        "pydub>=0.25.1",
+        "ffmpeg-python>=0.2.0",
+        "tqdm>=4.65.0",
+        "psutil>=5.9.0",
+    ],
     extras_require={
         "dev": [
-            "pytest>=6.0",
-            "pytest-cov>=2.0",
-            "black>=21.0",
-            "flake8>=3.8",
-            "mypy>=0.800",
+            "pytest>=7.0.0",
+            "black>=23.0.0",
+            "flake8>=6.0.0",
+            "mypy>=1.0.0",
         ],
-        "docs": [
-            "sphinx>=4.0",
-            "sphinx-rtd-theme>=1.0",
+        "gpu": [
+            "torch>=2.0.0+cu118",
+            "torchaudio>=2.0.0+cu118",
         ],
     },
     entry_points={
         "console_scripts": [
-            "farsitranscribe=main:main",
+            "farsi-transcribe=farsi_transcribe.cli:main",
         ],
     },
     include_package_data=True,
-    zip_safe=False,
+    package_data={
+        "farsi_transcribe": ["*.json", "*.yaml"],
+    },
+    project_urls={
+        "Bug Reports": "https://github.com/yourusername/FarsiTranscribe/issues",
+        "Source": "https://github.com/yourusername/FarsiTranscribe",
+        "Documentation": "https://github.com/yourusername/FarsiTranscribe/wiki",
+    },
     keywords=[
+        "speech-recognition",
         "transcription",
-        "audio",
-        "speech-to-text",
         "persian",
         "farsi",
         "whisper",
+        "audio-processing",
         "nlp",
-        "ai",
+        "speech-to-text",
     ],
-    project_urls={
-        "Bug Reports": "https://github.com/yourusername/farsitranscribe/issues",
-        "Source": "https://github.com/yourusername/farsitranscribe",
-        "Documentation": "https://farsitranscribe.readthedocs.io/",
-    },
 ) 

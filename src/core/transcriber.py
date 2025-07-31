@@ -9,8 +9,10 @@ import time
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 from abc import ABC, abstractmethod
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, Manager
 from functools import partial
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import torch
 import whisper
@@ -22,6 +24,61 @@ from .config import TranscriptionConfig
 from ..utils.file_manager import TranscriptionFileManager
 from ..utils.repetition_detector import RepetitionDetector
 from ..utils.sentence_extractor import SentenceExtractor
+from ..utils.performance_monitor import performance_monitor
+from ..utils.audio_preprocessor import AudioPreprocessor, get_preprocessing_capabilities
+
+# Global model instance for sharing across processes
+_global_model = None
+_model_lock = threading.Lock()
+
+def get_shared_model(config: TranscriptionConfig):
+    """Get or create shared Whisper model instance."""
+    global _global_model
+    
+    with _model_lock:
+        if _global_model is None:
+            logging.info(f"Loading shared Whisper {config.model_name} model...")
+            start_time = time.time()
+            
+            # Enhanced SSL handling for model download
+            import ssl
+            import urllib.request
+            import certifi
+            
+            # Create SSL context with proper certificate verification
+            ssl_context = ssl.create_default_context(cafile=certifi.where())
+            
+            # Monkey patch urllib to use our SSL context
+            original_urlopen = urllib.request.urlopen
+            def urlopen_with_ssl(*args, **kwargs):
+                kwargs['context'] = ssl_context
+                return original_urlopen(*args, **kwargs)
+            urllib.request.urlopen = urlopen_with_ssl
+            
+            try:
+                _global_model = whisper.load_model(config.model_name, device=config.device)
+                load_time = time.time() - start_time
+                logging.info(f"Shared model loaded in {load_time:.2f} seconds")
+            except Exception as e:
+                # Fallback: try without SSL verification
+                logging.warning(f"SSL verification failed, trying without verification: {e}")
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                
+                def urlopen_without_ssl(*args, **kwargs):
+                    kwargs['context'] = ssl_context
+                    return original_urlopen(*args, **kwargs)
+                urllib.request.urlopen = urlopen_without_ssl
+                
+                _global_model = whisper.load_model(config.model_name, device=config.device)
+                load_time = time.time() - start_time
+                logging.info(f"Shared model loaded (no SSL) in {load_time:.2f} seconds")
+            finally:
+                # Restore original urlopen
+                urllib.request.urlopen = original_urlopen
+    
+    return _global_model
 
 
 class AudioProcessor(ABC):
@@ -48,11 +105,22 @@ class WhisperTranscriber(ABC):
 
 
 class StandardAudioProcessor(AudioProcessor):
-    """Standard audio processing implementation."""
+    """Standard audio processing implementation with preprocessing support."""
     
     def __init__(self, config: TranscriptionConfig):
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Initialize preprocessor if enabled
+        if config.enable_preprocessing:
+            self.preprocessor = AudioPreprocessor(
+                enable_noise_reduction=config.enable_noise_reduction,
+                enable_vad=config.enable_voice_activity_detection,
+                enable_speech_enhancement=config.enable_speech_enhancement,
+                sample_rate=config.target_sample_rate
+            )
+        else:
+            self.preprocessor = None
     
     def process_audio(self, audio_file_path: str) -> AudioSegment:
         """Load and preprocess audio with validation."""
@@ -74,6 +142,11 @@ class StandardAudioProcessor(AudioProcessor):
             if audio.max_possible_amplitude > 0:
                 audio = audio.normalize()
             
+            # Apply preprocessing if enabled
+            if self.preprocessor:
+                self.logger.info("Applying audio preprocessing...")
+                audio = self.preprocessor.preprocess_audio(audio)
+            
             self.logger.info(f"Audio processed - Duration: {len(audio)/1000:.1f}s")
             return audio
             
@@ -82,7 +155,17 @@ class StandardAudioProcessor(AudioProcessor):
             raise
     
     def create_chunks(self, audio: AudioSegment) -> List[Tuple[int, int]]:
-        """Create optimized chunks with reduced overlap."""
+        """Create optimized chunks with preprocessing-aware chunking."""
+        # Use smart chunking if preprocessing is enabled
+        if self.preprocessor and self.config.use_smart_chunking:
+            chunks = self.preprocessor.create_smart_chunks(
+                audio, 
+                self.config.chunk_duration_ms, 
+                self.config.overlap_ms
+            )
+            return chunks
+        
+        # Fallback to standard chunking
         chunks = []
         audio_length = len(audio)
         
@@ -107,13 +190,14 @@ class StandardAudioProcessor(AudioProcessor):
 
 
 class StandardWhisperTranscriber(WhisperTranscriber):
-    """Standard Whisper transcription implementation."""
+    """Standard Whisper transcription implementation with shared model support."""
     
-    def __init__(self, config: TranscriptionConfig):
+    def __init__(self, config: TranscriptionConfig, shared_model: Optional[whisper.Whisper] = None):
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.model = None
-        self._load_model()
+        self.model = shared_model
+        if self.model is None:
+            self._load_model()
     
     def _load_model(self) -> None:
         """Load Whisper model with enhanced configuration."""
@@ -259,9 +343,12 @@ class UnifiedAudioTranscriber:
         self.config = config
         self.logger = self._setup_logging()
         
+        # Log preprocessing capabilities
+        capabilities = get_preprocessing_capabilities()
+        self.logger.info(f"Preprocessing capabilities: {capabilities}")
+        
         # Initialize components
         self.audio_processor = StandardAudioProcessor(config)
-        self.whisper_transcriber = StandardWhisperTranscriber(config)
         self.transcription_merger = TranscriptionMerger(config)
         self.sentence_extractor = SentenceExtractor()
         self.repetition_detector = RepetitionDetector()
@@ -269,23 +356,92 @@ class UnifiedAudioTranscriber:
         # Setup GPU
         self._setup_gpu()
         
-        # Set up multiprocessing
+        # Set up multiprocessing with optimized worker count
         self.num_workers = min(self.config.num_workers, cpu_count())
         self.logger.info(f"Using {self.num_workers} CPU cores for parallel processing")
+        
+        # Initialize shared model
+        if self.config.device == "cpu":
+            self.shared_model = get_shared_model(config)
+        else:
+            self.shared_model = None
     
-    def _transcribe_chunk_worker(self, chunk_data: Tuple[int, np.ndarray]) -> Tuple[int, str]:
-        """Worker function for parallel chunk transcription."""
+    def _transcribe_chunk_worker_optimized(self, chunk_data: Tuple[int, np.ndarray]) -> Tuple[int, str]:
+        """Optimized worker function with shared model support."""
         chunk_index, chunk_array = chunk_data
         
         try:
-            # Create a temporary transcriber for this worker
-            temp_transcriber = StandardWhisperTranscriber(self.config)
+            # Use shared model if available, otherwise create temporary
+            if self.shared_model is not None:
+                temp_transcriber = StandardWhisperTranscriber(self.config, self.shared_model)
+            else:
+                temp_transcriber = StandardWhisperTranscriber(self.config)
+            
             result = temp_transcriber.transcribe_chunk(chunk_array)
             return chunk_index, result
         except Exception as e:
             self.logger.error(f"Worker error on chunk {chunk_index}: {e}")
             return chunk_index, ""
     
+    def _prepare_audio_chunks_parallel(self, audio: AudioSegment, chunks: List[Tuple[int, int]]) -> List[np.ndarray]:
+        """Prepare audio chunks in parallel for better performance."""
+        if not self.config.use_parallel_audio_prep:
+            return self._prepare_audio_chunks_sequential(audio, chunks)
+        
+        def prepare_single_chunk(chunk_data):
+            chunk_index, (start_ms, end_ms) = chunk_data
+            try:
+                chunk_audio = audio[start_ms:end_ms]
+                chunk_array = np.array(chunk_audio.get_array_of_samples())
+                
+                if chunk_audio.channels == 2:
+                    chunk_array = chunk_array.reshape((-1, 2)).mean(axis=1)
+                    
+                return chunk_index, chunk_array
+            except Exception as e:
+                self.logger.error(f"Error preparing chunk {chunk_index}: {e}")
+                return chunk_index, np.array([])
+        
+        # Prepare chunk data
+        chunk_data = [(i, chunk) for i, chunk in enumerate(chunks)]
+        
+        # Use ThreadPoolExecutor for I/O-bound audio preparation
+        audio_arrays = [None] * len(chunks)
+        
+        with ThreadPoolExecutor(max_workers=min(4, self.num_workers)) as executor:
+            futures = {executor.submit(prepare_single_chunk, data): data for data in chunk_data}
+            
+            with tqdm(total=len(chunks), desc="📦 Preparing chunks", leave=False) as prep_bar:
+                for future in as_completed(futures):
+                    chunk_index, chunk_array = future.result()
+                    audio_arrays[chunk_index] = chunk_array
+                    prep_bar.update(1)
+        
+        return audio_arrays
+    
+    def _prepare_audio_chunks_sequential(self, audio: AudioSegment, chunks: List[Tuple[int, int]]) -> List[np.ndarray]:
+        """Sequential audio chunk preparation (fallback)."""
+        audio_arrays = []
+        
+        with tqdm(total=len(chunks), desc="📦 Preparing", leave=False) as prep_bar:
+            for start_ms, end_ms in chunks:
+                try:
+                    chunk_audio = audio[start_ms:end_ms]
+                    chunk_array = np.array(chunk_audio.get_array_of_samples())
+                    
+                    if chunk_audio.channels == 2:
+                        chunk_array = chunk_array.reshape((-1, 2)).mean(axis=1)
+                        
+                    audio_arrays.append(chunk_array)
+                    prep_bar.update(1)
+                    
+                except Exception as e:
+                    self.logger.error(f"Error preparing chunk: {e}")
+                    audio_arrays.append(np.array([]))
+                    prep_bar.update(1)
+        
+        return audio_arrays
+
     def _setup_logging(self) -> logging.Logger:
         """Configure comprehensive logging for performance monitoring."""
         logging.basicConfig(
@@ -324,65 +480,69 @@ class UnifiedAudioTranscriber:
     
     def _process_chunks_with_preview(self, audio: AudioSegment, chunks: List[Tuple[int, int]], 
                                    file_manager: TranscriptionFileManager) -> List[str]:
-        """Process chunks with enhanced preview and monitoring."""
+        """Process chunks with enhanced preview and monitoring - OPTIMIZED VERSION."""
         all_transcriptions = []
         
-        print("🔄 Preparing audio chunks...")
-        audio_arrays = []
-        
-        with tqdm(total=len(chunks), desc="📦 Preparing", leave=False) as prep_bar:
-            for start_ms, end_ms in chunks:
-                try:
-                    chunk_audio = audio[start_ms:end_ms]
-                    chunk_array = np.array(chunk_audio.get_array_of_samples())
+        # Start performance monitoring
+        with performance_monitor(enable_monitoring=True) as monitor:
+            monitor.start_monitoring(len(chunks), len(audio) / 1000)
+            
+            # Parallel audio preparation
+            print("🔄 Preparing audio chunks...")
+            audio_arrays = self._prepare_audio_chunks_parallel(audio, chunks)
+            
+            # Prepare chunk data for parallel processing
+            chunk_data = [(i, chunk_array) for i, chunk_array in enumerate(audio_arrays)]
+            
+            print(f"🚀 Processing {len(chunks)} chunks using {self.num_workers} CPU cores")
+            
+            # Use multiprocessing for parallel transcription with optimized settings
+            with Pool(processes=self.num_workers, maxtasksperchild=10) as pool:
+                with tqdm(total=len(chunks), desc="🎵 Transcribing", unit="chunk") as main_pbar:
                     
-                    if chunk_audio.channels == 2:
-                        chunk_array = chunk_array.reshape((-1, 2)).mean(axis=1)
+                    # Process chunks in parallel with chunking for memory efficiency
+                    chunk_size = max(1, len(chunks) // (self.num_workers * 2))
+                    results = []
+                    
+                    for i in range(0, len(chunk_data), chunk_size):
+                        batch = chunk_data[i:i + chunk_size]
                         
-                    audio_arrays.append(chunk_array)
-                    prep_bar.update(1)
+                        # Process batch
+                        batch_results = []
+                        for result in pool.imap_unordered(self._transcribe_chunk_worker_optimized, batch):
+                            chunk_index, transcription = result
+                            batch_results.append((chunk_index, transcription))
+                            
+                            # Update performance monitor
+                            monitor.update_progress(len(results) + len(batch_results))
+                            
+                            # Enhanced preview with repetition detection
+                            if self.config.enable_sentence_preview and transcription.strip():
+                                sentences = self.sentence_extractor.extract_sentences(
+                                    transcription, self.config.preview_sentence_count
+                                )
+                                if sentences:
+                                    preview = self.sentence_extractor.format_sentence_preview(
+                                        sentences, chunk_index + 1
+                                    )
+                                    print(f"\n{preview}")
+                            
+                            main_pbar.update(1)
+                            main_pbar.set_postfix({
+                                'Cores': f'{self.num_workers}',
+                                'Processed': f"{len(results) + len(batch_results)}/{len(chunks)}",
+                                'Non-empty': f"{sum(1 for _, r in results + batch_results if r.strip())}"
+                            })
+                        
+                        results.extend(batch_results)
+                        
+                        # Memory cleanup after each batch
+                        if self.config.memory_efficient_mode:
+                            gc.collect()
                     
-                except Exception as e:
-                    self.logger.error(f"Error preparing chunk: {e}")
-                    audio_arrays.append(np.array([]))
-                    prep_bar.update(1)
-        
-        # Prepare chunk data for parallel processing
-        chunk_data = [(i, chunk_array) for i, chunk_array in enumerate(audio_arrays)]
-        
-        print(f"🚀 Processing {len(chunks)} chunks using {self.num_workers} CPU cores")
-        
-        # Use multiprocessing for parallel transcription
-        with Pool(processes=self.num_workers) as pool:
-            with tqdm(total=len(chunks), desc="🎵 Transcribing", unit="chunk") as main_pbar:
-                
-                # Process chunks in parallel
-                results = []
-                for result in pool.imap_unordered(self._transcribe_chunk_worker, chunk_data):
-                    chunk_index, transcription = result
-                    results.append((chunk_index, transcription))
-                    
-                    # Enhanced preview with repetition detection
-                    if self.config.enable_sentence_preview and transcription.strip():
-                        sentences = self.sentence_extractor.extract_sentences(
-                            transcription, self.config.preview_sentence_count
-                        )
-                        if sentences:
-                            preview = self.sentence_extractor.format_sentence_preview(
-                                sentences, chunk_index + 1
-                            )
-                            print(f"\n{preview}")
-                    
-                    main_pbar.update(1)
-                    main_pbar.set_postfix({
-                        'Cores': f'{self.num_workers}',
-                        'Processed': f"{len(results)}/{len(chunks)}",
-                        'Non-empty': f"{sum(1 for _, r in results if r.strip())}"
-                    })
-                
-                # Sort results by chunk index to maintain order
-                results.sort(key=lambda x: x[0])
-                all_transcriptions = [transcription for _, transcription in results]
+                    # Sort results by chunk index to maintain order
+                    results.sort(key=lambda x: x[0])
+                    all_transcriptions = [transcription for _, transcription in results]
         
         return all_transcriptions
     

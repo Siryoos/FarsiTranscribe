@@ -57,12 +57,17 @@ class SentenceExtractor:
             
             return ""  # Return empty string since we're handling display directly
         except ImportError:
-            # Fallback to original format
-            preview_lines = [f"Part {part_number} Preview:"]
+            # Fallback to original format with better RTL handling
+            preview_lines = []
             for i, sentence in enumerate(sentences, 1):
                 # Truncate very long sentences for preview
                 display_sentence = sentence[:100] + "..." if len(sentence) > 100 else sentence
-                preview_lines.append(f"  {i}. {display_sentence}")
+                if i == 1:
+                    preview_lines.append(f"Part {part_number} Preview: {display_sentence}")
+                else:
+                    preview_lines.append(f"Part {part_number}.{i} Preview:")
+                    preview_lines.append(display_sentence)
+                    preview_lines.append("-" * 50)
             
             return "\n".join(preview_lines)
     

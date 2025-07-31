@@ -6,6 +6,10 @@ torchaudio>=2.0.0
 # Audio processing
 pydub>=0.25.1
 numpy>=1.21.0
+librosa>=0.10.0
+noisereduce>=3.0.0
+webrtcvad>=2.0.10
+scipy>=1.9.0
 
 # Progress tracking and utilities
 tqdm>=4.64.0
@@ -14,6 +18,14 @@ tqdm>=4.64.0
 colorama>=0.4.6
 rich>=13.0.0
 blessed>=1.20.0
+
+# RTL (Right-to-Left) text support for Persian/Arabic
+python-bidi>=0.4.2
+arabic-reshaper>=3.0.0
+
+# Performance monitoring and SSL
+psutil>=5.9.0
+certifi>=2023.0.0
 
 # Optional: For better audio processing (if not using pydub)
 # librosa>=0.10.0

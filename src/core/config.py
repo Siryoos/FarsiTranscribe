@@ -22,10 +22,10 @@ class TranscriptionConfig:
     target_sample_rate: int = 16000
     audio_format: str = "wav"
     
-    # Processing settings
+    # Processing settings - OPTIMIZED FOR CPU
     device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")
     batch_size: int = field(default_factory=lambda: TranscriptionConfig._get_optimal_batch_size())
-    num_workers: int = field(default_factory=lambda: min(2, os.cpu_count() or 2))  # Limited to 2 workers
+    num_workers: int = field(default_factory=lambda: min(6, os.cpu_count() or 4))  # Increased from 2 to 6
     
     # Output settings
     output_directory: str = field(default_factory=lambda: os.getcwd())
@@ -49,6 +49,18 @@ class TranscriptionConfig:
     logprob_threshold: float = -1.0
     compression_ratio_threshold: float = 2.0
     
+    # CPU Optimization settings
+    use_parallel_audio_prep: bool = True
+    chunk_prefetch_count: int = 4
+    memory_efficient_mode: bool = True
+    
+    # Audio Preprocessing settings (Quick Wins)
+    enable_preprocessing: bool = True
+    enable_noise_reduction: bool = True
+    enable_voice_activity_detection: bool = True
+    enable_speech_enhancement: bool = True
+    use_smart_chunking: bool = True
+
     def __post_init__(self):
         """Validate and optimize configuration after initialization."""
         self._validate_config()
@@ -79,7 +91,11 @@ class TranscriptionConfig:
             self.batch_size = min(self.batch_size, 6)
         else:
             self.device = "cpu"
-            self.batch_size = 1
+            # CPU optimizations
+            self.batch_size = 1  # Sequential processing for CPU
+            self.num_workers = min(6, os.cpu_count() or 4)  # Use more CPU cores
+            self.use_parallel_audio_prep = True
+            self.memory_efficient_mode = True
     
     @staticmethod
     def _get_optimal_batch_size() -> int:
@@ -131,7 +147,7 @@ class ConfigFactory:
             overlap_ms=500,
             repetition_threshold=0.8,
             max_word_repetition=3,
-            num_workers=2  # Fixed to 2 workers
+            num_workers=6  # Increased from 2 to 6
         )
         
         if output_dir:
@@ -140,15 +156,40 @@ class ConfigFactory:
         return config
     
     @staticmethod
+    def create_cpu_optimized_config() -> TranscriptionConfig:
+        """Create configuration specifically optimized for CPU-only systems."""
+        return TranscriptionConfig(
+            model_name="medium",  # Smaller model for CPU performance
+            language="fa",
+            chunk_duration_ms=25000,  # Larger chunks = fewer processing steps
+            overlap_ms=300,
+            num_workers=6,  # Use more CPU cores
+            repetition_threshold=0.8,
+            max_word_repetition=2,
+            min_chunk_confidence=0.6,  # Slightly lower threshold for speed
+            temperature=0.0,
+            condition_on_previous_text=False,  # Disable for speed
+            no_speech_threshold=0.7,  # Higher threshold to skip silence
+            logprob_threshold=-1.0,
+            compression_ratio_threshold=2.0,
+            enable_sentence_preview=True,
+            use_parallel_audio_prep=True,
+            memory_efficient_mode=True,
+            chunk_prefetch_count=6
+        )
+    
+    @staticmethod
     def create_fast_config() -> TranscriptionConfig:
         """Create configuration optimized for speed."""
         return TranscriptionConfig(
-            model_name="base",
-            chunk_duration_ms=30000,
+            model_name="base",  # Smaller model for speed
+            chunk_duration_ms=30000,  # Larger chunks = fewer processing steps
             overlap_ms=100,
-            batch_size=4,
-            num_workers=2,  # Fixed to 2 workers
-            enable_sentence_preview=False
+            batch_size=1,
+            num_workers=6,  # Increased from 2 to 6
+            enable_sentence_preview=False,
+            use_parallel_audio_prep=True,
+            memory_efficient_mode=True
         )
     
     @staticmethod
@@ -158,33 +199,37 @@ class ConfigFactory:
             model_name="large-v3",
             chunk_duration_ms=15000,
             overlap_ms=300,
-            num_workers=2,  # Fixed to 2 workers
+            num_workers=6,  # Increased from 2 to 6
             repetition_threshold=0.9,
             max_word_repetition=1,
             min_chunk_confidence=0.8,
-            temperature=0.0,  # Lower temperature for more consistent output
-            condition_on_previous_text=True,  # Better context
+            temperature=0.0,
+            condition_on_previous_text=True,
             no_speech_threshold=0.6,
             logprob_threshold=-1.0,
-            compression_ratio_threshold=2.0
-        ) 
+            compression_ratio_threshold=2.0,
+            use_parallel_audio_prep=True,
+            memory_efficient_mode=False  # Quality over memory efficiency
+        )
     
     @staticmethod
     def create_persian_optimized_config() -> TranscriptionConfig:
         """Create configuration specifically optimized for Persian transcription."""
         return TranscriptionConfig(
-            model_name="large-v3",  # Best model for Persian
-            language="fa",  # Explicitly set Persian language
-            chunk_duration_ms=20000,  # Longer chunks for better context
-            overlap_ms=500,  # More overlap for better continuity
-            num_workers=2,  # Fixed to 2 workers as requested
+            model_name="large-v3",
+            language="fa",
+            chunk_duration_ms=20000,
+            overlap_ms=500,
+            num_workers=6,  # Increased from 2 to 6
             repetition_threshold=0.85,
             max_word_repetition=2,
             min_chunk_confidence=0.7,
-            temperature=0.0,  # Deterministic output
-            condition_on_previous_text=True,  # Use context
+            temperature=0.0,
+            condition_on_previous_text=True,
             no_speech_threshold=0.6,
             logprob_threshold=-1.0,
             compression_ratio_threshold=2.0,
-            enable_sentence_preview=True
+            enable_sentence_preview=True,
+            use_parallel_audio_prep=True,
+            memory_efficient_mode=True
         ) 

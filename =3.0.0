@@ -1,0 +1,11 @@
+Collecting python-bidi
+  Obtaining dependency information for python-bidi from https://files.pythonhosted.org/packages/b7/17/b314c260366a8fb370c58b98298f903fb2a3c476267efbe792bb8694ac7c/python_bidi-0.6.6-cp312-cp312-macosx_11_0_arm64.whl.metadata
+  Downloading python_bidi-0.6.6-cp312-cp312-macosx_11_0_arm64.whl.metadata (4.9 kB)
+Collecting arabic-reshaper
+  Obtaining dependency information for arabic-reshaper from https://files.pythonhosted.org/packages/44/fb/e20b45d81d74d810b01bff408baf8af04abf1d55a1a289c8395ad0919a7c/arabic_reshaper-3.0.0-py3-none-any.whl.metadata
+  Downloading arabic_reshaper-3.0.0-py3-none-any.whl.metadata (12 kB)
+Downloading python_bidi-0.6.6-cp312-cp312-macosx_11_0_arm64.whl (262 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 262.1/262.1 kB 923.2 kB/s eta 0:00:00
+Downloading arabic_reshaper-3.0.0-py3-none-any.whl (20 kB)
+Installing collected packages: python-bidi, arabic-reshaper
+Successfully installed arabic-reshaper-3.0.0 python-bidi-0.6.6

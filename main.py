@@ -29,6 +29,9 @@ Examples:
   # Fast transcription
   python main.py examples/audio/jalase\\ bi\\ va\\ zirsakht.m4a --quality fast
   
+  # CPU-optimized transcription (recommended for CPU-only systems)
+  python main.py examples/audio/jalase\\ bi\\ va\\ zirsakht.m4a --quality cpu-optimized
+  
   # Custom configuration
   python main.py examples/audio/jalase\\ bi\\ va\\ zirsakht.m4a --model large-v3 --language fa --output-dir ./output
         """
@@ -41,7 +44,7 @@ Examples:
     
     parser.add_argument(
         "--quality", "-q",
-        choices=["fast", "balanced", "high"],
+        choices=["fast", "balanced", "high", "cpu-optimized"],
         default="balanced",
         help="Transcription quality preset (default: balanced)"
     )
@@ -118,6 +121,8 @@ def get_config_from_args(args: argparse.Namespace) -> TranscriptionConfig:
         config = ConfigFactory.create_fast_config()
     elif args.quality == "high":
         config = ConfigFactory.create_high_quality_config()
+    elif args.quality == "cpu-optimized":
+        config = ConfigFactory.create_cpu_optimized_config()
     else:  # balanced
         config = ConfigFactory.create_optimized_config()
     

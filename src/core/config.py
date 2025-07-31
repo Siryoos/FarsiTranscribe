@@ -25,7 +25,7 @@ class TranscriptionConfig:
     # Processing settings
     device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")
     batch_size: int = field(default_factory=lambda: TranscriptionConfig._get_optimal_batch_size())
-    num_workers: int = field(default_factory=lambda: min(16, os.cpu_count() or 4))
+    num_workers: int = field(default_factory=lambda: min(2, os.cpu_count() or 2))  # Limited to 2 workers
     
     # Output settings
     output_directory: str = field(default_factory=lambda: os.getcwd())
@@ -130,7 +130,8 @@ class ConfigFactory:
             enable_sentence_preview=enable_preview,
             overlap_ms=500,
             repetition_threshold=0.8,
-            max_word_repetition=3
+            max_word_repetition=3,
+            num_workers=2  # Fixed to 2 workers
         )
         
         if output_dir:
@@ -146,7 +147,7 @@ class ConfigFactory:
             chunk_duration_ms=30000,
             overlap_ms=100,
             batch_size=4,
-            num_workers=min(16, os.cpu_count() or 4),
+            num_workers=2,  # Fixed to 2 workers
             enable_sentence_preview=False
         )
     
@@ -157,8 +158,33 @@ class ConfigFactory:
             model_name="large-v3",
             chunk_duration_ms=15000,
             overlap_ms=300,
-            num_workers=min(16, os.cpu_count() or 4,2),
+            num_workers=2,  # Fixed to 2 workers
             repetition_threshold=0.9,
             max_word_repetition=1,
-            min_chunk_confidence=0.8
+            min_chunk_confidence=0.8,
+            temperature=0.0,  # Lower temperature for more consistent output
+            condition_on_previous_text=True,  # Better context
+            no_speech_threshold=0.6,
+            logprob_threshold=-1.0,
+            compression_ratio_threshold=2.0
+        ) 
+    
+    @staticmethod
+    def create_persian_optimized_config() -> TranscriptionConfig:
+        """Create configuration specifically optimized for Persian transcription."""
+        return TranscriptionConfig(
+            model_name="large-v3",  # Best model for Persian
+            language="fa",  # Explicitly set Persian language
+            chunk_duration_ms=20000,  # Longer chunks for better context
+            overlap_ms=500,  # More overlap for better continuity
+            num_workers=2,  # Fixed to 2 workers as requested
+            repetition_threshold=0.85,
+            max_word_repetition=2,
+            min_chunk_confidence=0.7,
+            temperature=0.0,  # Deterministic output
+            condition_on_previous_text=True,  # Use context
+            no_speech_threshold=0.6,
+            logprob_threshold=-1.0,
+            compression_ratio_threshold=2.0,
+            enable_sentence_preview=True
         ) 

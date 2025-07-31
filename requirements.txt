@@ -10,6 +10,11 @@ numpy>=1.21.0
 # Progress tracking and utilities
 tqdm>=4.64.0
 
+# Terminal display and Unicode support
+colorama>=0.4.6
+rich>=13.0.0
+blessed>=1.20.0
+
 # Optional: For better audio processing (if not using pydub)
 # librosa>=0.10.0
 

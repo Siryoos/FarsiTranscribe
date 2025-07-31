@@ -41,13 +41,30 @@ class SentenceExtractor:
         if not sentences:
             return f"Part {part_number}: [No meaningful content]"
         
-        preview_lines = [f"Part {part_number} Preview:"]
-        for i, sentence in enumerate(sentences, 1):
-            # Truncate very long sentences for preview
-            display_sentence = sentence[:100] + "..." if len(sentence) > 100 else sentence
-            preview_lines.append(f"  {i}. {display_sentence}")
-        
-        return "\n".join(preview_lines)
+        # Try to use the enhanced terminal display
+        try:
+            from .terminal_display import terminal_display
+            
+            # Use the enhanced display for the first sentence
+            if sentences:
+                terminal_display.print_persian_preview(sentences[0], part_number)
+                
+                # If there are more sentences, show them in a simpler format
+                if len(sentences) > 1:
+                    for i, sentence in enumerate(sentences[1:], 2):
+                        if sentence.strip():
+                            terminal_display.print_simple_preview(sentence, f"{part_number}.{i}")
+            
+            return ""  # Return empty string since we're handling display directly
+        except ImportError:
+            # Fallback to original format
+            preview_lines = [f"Part {part_number} Preview:"]
+            for i, sentence in enumerate(sentences, 1):
+                # Truncate very long sentences for preview
+                display_sentence = sentence[:100] + "..." if len(sentence) > 100 else sentence
+                preview_lines.append(f"  {i}. {display_sentence}")
+            
+            return "\n".join(preview_lines)
     
     @staticmethod
     def split_into_paragraphs(text: str, min_paragraph_length: int = 50) -> List[str]:

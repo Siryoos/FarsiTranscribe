@@ -6,8 +6,8 @@ Basic usage example for FarsiTranscribe.
 import sys
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src import UnifiedAudioTranscriber
 from src.core.config import ConfigFactory
@@ -17,7 +17,7 @@ def basic_transcription_example():
     """Basic transcription example."""
     
     # Audio file path (update this to your actual file)
-    audio_file = "path/to/your/audio_file.wav"
+    audio_file = "examples/audio/your_audio_file.wav"
     
     # Create configuration
     config = ConfigFactory.create_optimized_config(
@@ -38,7 +38,7 @@ def basic_transcription_example():
 def high_quality_transcription_example():
     """High quality transcription example."""
     
-    audio_file = "path/to/your/audio_file.wav"
+    audio_file = "examples/audio/your_audio_file.wav"
     
     # Use high quality preset
     config = ConfigFactory.create_high_quality_config()
@@ -52,7 +52,7 @@ def high_quality_transcription_example():
 def fast_transcription_example():
     """Fast transcription example."""
     
-    audio_file = "path/to/your/audio_file.wav"
+    audio_file = "examples/audio/your_audio_file.wav"
     
     # Use fast preset
     config = ConfigFactory.create_fast_config()
@@ -66,7 +66,7 @@ def fast_transcription_example():
 def custom_configuration_example():
     """Custom configuration example."""
     
-    audio_file = "path/to/your/audio_file.wav"
+    audio_file = "examples/audio/your_audio_file.wav"
     
     # Create custom configuration
     config = ConfigFactory.create_optimized_config()

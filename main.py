@@ -9,9 +9,6 @@ import sys
 import os
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
 from src import UnifiedAudioTranscriber
 from src.core.config import TranscriptionConfig, ConfigFactory
 

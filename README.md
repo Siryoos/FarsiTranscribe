@@ -1,247 +1,179 @@
-# FarsiTranscribe 🎙️
+# FarsiTranscribe
 
-A modular, object-oriented audio transcription system with advanced anti-repetition features, specifically optimized for Persian (Farsi) audio transcription.
+A modular audio transcription system with anti-repetition features, specifically optimized for Persian (Farsi) audio transcription.
 
-## Features ✨
+## Features
 
-- **Modular Architecture**: Clean separation of concerns with extensible components
-- **Anti-Repetition Technology**: Advanced algorithms to detect and remove repetitive content
-- **Multi-Format Support**: Handles various audio formats (WAV, MP3, M4A, etc.)
-- **Quality Presets**: Fast, balanced, and high-quality transcription modes
-- **GPU Acceleration**: Automatic CUDA detection and optimization
-- **Progress Tracking**: Real-time progress bars and sentence previews
-- **Multiple Output Formats**: TXT, MD, JSON export options
-- **Comprehensive Logging**: Detailed logging for debugging and monitoring
+- 🎙️ **Persian-Optimized**: Specifically tuned for Persian/Farsi audio transcription
+- 🔄 **Anti-Repetition**: Advanced algorithms to detect and remove repetitive content
+- 🧩 **Modular Design**: Clean, maintainable codebase with separated concerns
+- ⚡ **Performance Optimized**: GPU acceleration with intelligent batch processing
+- 🎯 **Quality Control**: Multiple quality presets and confidence thresholds
+- 📊 **Real-time Preview**: Live transcription preview with sentence extraction
 
-## Installation 📦
-
-### Prerequisites
-
-- Python 3.8+
-- FFmpeg (for audio processing)
-
-### Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### Install FFmpeg
-
-**macOS:**
-```bash
-brew install ffmpeg
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update
-sudo apt install ffmpeg
-```
-
-**Windows:**
-Download from [FFmpeg official website](https://ffmpeg.org/download.html)
-
-## Quick Start 🚀
-
-### Command Line Usage
-
-```bash
-# Basic transcription
-python main.py audio_file.wav
-
-# High quality transcription
-python main.py audio_file.wav --quality high
-
-# Fast transcription
-python main.py audio_file.wav --quality fast
-
-# Custom configuration
-python main.py audio_file.wav --model large-v3 --language fa --output-dir ./output
-```
-
-### Python API Usage
-
-```python
-from src import UnifiedAudioTranscriber
-from src.core.config import ConfigFactory
-
-# Create configuration
-config = ConfigFactory.create_optimized_config(
-    model_size="large-v3",
-    language="fa",
-    output_dir="./output"
-)
-
-# Run transcription
-with UnifiedAudioTranscriber(config) as transcriber:
-    transcription = transcriber.transcribe_file("audio_file.wav")
-    print(f"Transcription: {transcription}")
-```
-
-## Project Structure 📁
+## Project Structure
 
 ```
 FarsiTranscribe/
-├── src/                          # Main source code
-│   ├── __init__.py              # Package initialization
-│   ├── core/                    # Core functionality
-│   │   ├── __init__.py
-│   │   ├── config.py           # Configuration management
-│   │   └── transcriber.py      # Main transcription engine
-│   └── utils/                   # Utility modules
-│       ├── __init__.py
-│       ├── file_manager.py     # File I/O operations
-│       ├── repetition_detector.py  # Anti-repetition algorithms
-│       └── sentence_extractor.py   # Text processing utilities
-├── examples/                    # Usage examples
-│   └── basic_usage.py
-├── main.py                     # CLI entry point
-├── requirements.txt            # Python dependencies
-└── README.md                  # This file
+├── src/                    # Main source code
+│   ├── core/              # Core transcription logic
+│   │   ├── config.py      # Configuration management
+│   │   └── transcriber.py # Main transcription engine
+│   └── utils/             # Utility modules
+│       ├── file_manager.py
+│       ├── repetition_detector.py
+│       ├── sentence_extractor.py
+│       └── terminal_display.py
+├── tests/                 # Test suite
+├── examples/              # Example usage and sample data
+│   └── audio/            # Sample audio files
+├── scripts/              # Utility scripts
+├── output/               # Transcription output directory
+├── main.py               # Main application entry point
+├── requirements.txt      # Python dependencies
+├── pyproject.toml        # Modern Python packaging
+└── README.md            # This file
 ```
 
-## Configuration Options ⚙️
+## Installation
+
+### Prerequisites
+
+- Python 3.8 or higher
+- CUDA-compatible GPU (optional, for acceleration)
+
+### Quick Start
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/farsitranscribe.git
+   cd farsitranscribe
+   ```
+
+2. **Create virtual environment:**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run transcription:**
+   ```bash
+   python main.py path/to/your/audio/file.wav
+   ```
+
+## Usage
+
+### Basic Transcription
+
+```bash
+# Basic transcription with default settings
+python main.py audio_file.wav
+
+# Persian-optimized transcription (recommended for Persian audio)
+python main.py audio_file.wav --language fa
+```
 
 ### Quality Presets
 
-- **Fast**: Optimized for speed, uses smaller models
-- **Balanced**: Good balance of speed and quality (default)
-- **High**: Maximum quality, uses largest models
+```bash
+# Fast transcription (base model, lower quality)
+python main.py audio_file.wav --quality fast
 
-### Model Options
+# Balanced transcription (default)
+python main.py audio_file.wav --quality balanced
 
-- `tiny`: Fastest, lowest quality
-- `base`: Fast, basic quality
-- `small`: Good balance
-- `medium`: Better quality
-- `large`: High quality
-- `large-v2`: Very high quality
-- `large-v3`: Best quality (recommended)
+# High quality transcription (large model, best quality)
+python main.py audio_file.wav --quality high
+```
 
 ### Advanced Options
 
 ```bash
-# Custom chunk duration (milliseconds)
-python main.py audio.wav --chunk-duration 15000
-
-# Custom overlap between chunks
-python main.py audio.wav --overlap 500
-
-# Custom repetition threshold (0.0-1.0)
-python main.py audio.wav --repetition-threshold 0.8
-
-# Maximum word repetitions
-python main.py audio.wav --max-word-repetition 2
-
-# Force CPU usage
-python main.py audio.wav --device cpu
-
-# Disable preview
-python main.py audio.wav --no-preview
+# Custom model and settings
+python main.py audio_file.wav \
+  --model large-v3 \
+  --language fa \
+  --output-dir ./output \
+  --device cuda \
+  --chunk-duration 20000 \
+  --overlap 500
 ```
 
-## Output Files 📄
+### Command Line Options
 
-The system generates multiple output files:
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--quality` | Quality preset (fast/balanced/high) | balanced |
+| `--model` | Whisper model size | auto |
+| `--language` | Language code | fa |
+| `--output-dir` | Output directory | ./output |
+| `--device` | Device (auto/cpu/cuda) | auto |
+| `--no-preview` | Disable sentence preview | False |
 
-- `{filename}_unified_transcription.txt`: Original transcription
-- `{filename}_cleaned_transcription.txt`: Cleaned transcription (recommended)
-- `{filename}_metadata.json`: Processing metadata and statistics
-- `transcription.log`: Detailed processing log
+## Configuration
 
-## Extending the System 🔧
+The system uses intelligent configuration management with presets optimized for different use cases:
 
-### Adding New Audio Processors
+- **Persian Optimized**: Best for Persian/Farsi audio
+- **Fast**: Quick transcription with base model
+- **High Quality**: Maximum accuracy with large model
+- **Custom**: Fully configurable parameters
 
-```python
-from src.core.transcriber import AudioProcessor
+## Development
 
-class CustomAudioProcessor(AudioProcessor):
-    def process_audio(self, audio_file_path: str) -> AudioSegment:
-        # Custom audio processing logic
-        pass
-    
-    def create_chunks(self, audio: AudioSegment) -> List[Tuple[int, int]]:
-        # Custom chunking logic
-        pass
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_config.py
+
+# Run with coverage
+pytest --cov=src
 ```
 
-### Adding New Transcription Engines
+### Code Quality
 
-```python
-from src.core.transcriber import WhisperTranscriber
+```bash
+# Format code
+black src/ tests/
 
-class CustomWhisperTranscriber(WhisperTranscriber):
-    def transcribe_chunk(self, chunk: np.ndarray) -> str:
-        # Custom transcription logic
-        pass
+# Lint code
+flake8 src/ tests/
+
+# Type checking
+mypy src/
 ```
 
-### Custom Configuration
+### Project Structure
 
-```python
-from src.core.config import TranscriptionConfig
+- **`src/core/`**: Core transcription logic and configuration
+- **`src/utils/`**: Utility modules for file management, repetition detection, etc.
+- **`tests/`**: Comprehensive test suite
+- **`examples/`**: Sample usage and audio files
+- **`scripts/`**: Utility scripts for debugging and maintenance
 
-config = TranscriptionConfig(
-    model_name="large-v3",
-    language="fa",
-    chunk_duration_ms=20000,
-    overlap_ms=200,
-    repetition_threshold=0.85,
-    max_word_repetition=2
-)
-```
-
-## Performance Tips 💡
-
-1. **GPU Usage**: Ensure CUDA is available for best performance
-2. **Memory Management**: Large models require significant RAM/VRAM
-3. **Batch Size**: Adjust based on your GPU memory
-4. **Chunk Size**: Larger chunks reduce processing overhead but may miss context
-5. **Quality vs Speed**: Choose appropriate quality preset for your needs
-
-## Troubleshooting 🔧
-
-### Common Issues
-
-**CUDA Out of Memory:**
-- Reduce batch size: `--batch-size 1`
-- Use smaller model: `--model base`
-- Force CPU: `--device cpu`
-
-**Poor Transcription Quality:**
-- Use larger model: `--model large-v3`
-- Increase chunk duration: `--chunk-duration 30000`
-- Use high quality preset: `--quality high`
-
-**Repetitive Output:**
-- Adjust repetition threshold: `--repetition-threshold 0.7`
-- Increase max word repetition: `--max-word-repetition 3`
-
-### Logs
-
-Check `transcription.log` for detailed error information and processing statistics.
-
-## Contributing 🤝
+## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License 📄
+## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments 🙏
+## Acknowledgments
 
-- Built on OpenAI's Whisper model
-- Uses PyTorch for GPU acceleration
-- Audio processing powered by pydub
-- Progress tracking with tqdm
-
-## Support 💬
-
-For issues, questions, or contributions, please open an issue on GitHub. 
+- Built with [OpenAI Whisper](https://github.com/openai/whisper)
+- Enhanced with custom anti-repetition algorithms
+- Optimized specifically for Persian language transcription 

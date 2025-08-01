@@ -293,8 +293,8 @@ class ConfigFactory:
         return TranscriptionConfig(
             model_name="large-v3",
             language="fa",
-            chunk_duration_ms=20000,
-            overlap_ms=500,
+            chunk_duration_ms=10000,
+            overlap_ms=100,
             num_workers=8,  # Increased from 2 to 6
             repetition_threshold=0.85,
             max_word_repetition=2,

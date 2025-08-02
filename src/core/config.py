@@ -307,7 +307,6 @@ class ConfigFactory:
             enable_sentence_preview=True,
             use_parallel_audio_prep=True,
             memory_efficient_mode=True,
-            enable_sentence_preview=True ,
             enable_advanced_preprocessing=True,
             enable_facebook_denoiser=True,
             enable_persian_optimization=True,
@@ -317,8 +316,4 @@ class ConfigFactory:
             enable_noise_reduction=True,
             enable_voice_activity_detection=True,
             enable_speech_enhancement=True,
-            enable_advanced_preprocessing=True,
-            enable_persian_optimization=True,
-            adaptive_processing=True,
-            use_smart_chunking=True,
         ) 

@@ -7,13 +7,14 @@ A clean, efficient, and extensible audio transcription system optimized for Pers
 
 ## 🌟 Features
 
-- **🎯 Persian-Optimized**: Specially tuned for Persian/Farsi language transcription
+- **🎯 Persian-Optimized**: Uses fine-tuned Persian Whisper model (`nezamisafa/whisper-persian-v4`) for superior Farsi transcription
 - **📦 Modular Design**: Clean architecture with separate modules for easy extension
 - **⚡ Performance**: Efficient chunking and memory management for large files
 - **🔧 Flexible Configuration**: Multiple presets and customization options
 - **🔌 Extensible**: Hook system for adding custom functionality
 - **📊 Multiple Output Formats**: Text, JSON, and timestamped segments
 - **🖥️ CPU/GPU Support**: Optimized for both CPU and GPU processing
+- **🤗 Hugging Face Integration**: Native support for Hugging Face models
 
 ## 📋 Table of Contents
 
@@ -72,42 +73,42 @@ brew install ffmpeg
 
 ## 🎯 Quick Start
 
+### Persian Model Integration
+
+This project now uses the **`nezamisafa/whisper-persian-v4`** model by default - a fine-tuned Whisper large-v3 model specifically optimized for Persian/Farsi transcription. This model provides superior accuracy for Persian language compared to the standard Whisper models.
+
 ### Command Line
 
 ```bash
-# Basic transcription
-python -m farsi_transcribe audio.mp3
+# Basic transcription (uses Persian model by default)
+python main.py audio.mp3
 
-# High quality transcription
-python -m farsi_transcribe audio.mp3 --preset high-quality
+# High quality transcription with Persian model
+python main.py audio.mp3 --quality high
 
-# Use specific model on GPU
-python -m farsi_transcribe audio.mp3 --model large-v3 --gpu
+# Use specific model (Persian model is default)
+python main.py audio.mp3 --model nezamisafa/whisper-persian-v4
 
-# Custom output directory and formats
-python -m farsi_transcribe audio.mp3 --output-dir results/ --formats txt json segments
+# Use standard Whisper model
+python main.py audio.mp3 --model large
+
+# Custom output directory
+python main.py audio.mp3 --output-dir results/
 ```
 
 ### Python API
 
 ```python
-from farsi_transcribe import FarsiTranscriber, ConfigPresets
+from src.core.config import TranscriptionConfig, ConfigFactory
+from src import UnifiedAudioTranscriber
 
-# Create transcriber with preset
-config = ConfigPresets.persian_optimized()
-transcriber = FarsiTranscriber(config)
+# Create configuration with Persian model
+config = ConfigFactory.create_persian_optimized_config()
 
-# Transcribe audio file
-result = transcriber.transcribe_file("audio.mp3")
-
-# Access results
-print(f"Transcription: {result.text}")
-print(f"Duration: {result.duration:.1f} seconds")
-print(f"Processing time: {result.processing_time:.1f} seconds")
-
-# Save results
-result.save_text("output.txt")
-result.save_json("output.json")
+# Initialize transcriber
+with UnifiedAudioTranscriber(config) as transcriber:
+    transcription = transcriber.transcribe_file("audio.mp3")
+    print(transcription)
 ```
 
 ## 🏗️ Architecture

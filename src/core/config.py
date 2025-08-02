@@ -13,8 +13,9 @@ class TranscriptionConfig:
     """Enhanced configuration class for transcription parameters."""
     
     # Model settings
-    model_name: str = "large-v3"
+    model_name: str = "nezamisafa/whisper-persian-v4"  # Persian fine-tuned model
     language: str = "fa"
+    use_huggingface_model: bool = True  # Use Hugging Face model instead of OpenAI Whisper
     
     # Audio processing
     chunk_duration_ms: int = 20000
@@ -146,7 +147,7 @@ class ConfigFactory:
     
     @staticmethod
     def create_optimized_config(
-        model_size: str = "large",
+        model_size: str = "nezamisafa/whisper-persian-v4",
         language: str = "fa",
         enable_preview: bool = True,
         output_dir: Optional[str] = None
@@ -155,6 +156,7 @@ class ConfigFactory:
         config = TranscriptionConfig(
             model_name=model_size,
             language=language,
+            use_huggingface_model=True,
             enable_sentence_preview=enable_preview,
             overlap_ms=500,
             repetition_threshold=0.8,
@@ -170,8 +172,9 @@ class ConfigFactory:
     def create_advanced_persian_config() -> TranscriptionConfig:
         """Create configuration with advanced Persian preprocessing."""
         return TranscriptionConfig(
-            model_name="large-v3",
+            model_name="nezamisafa/whisper-persian-v4",
             language="fa",
+            use_huggingface_model=True,
             chunk_duration_ms=25000,
             overlap_ms=300,
             num_workers=6,
@@ -191,8 +194,9 @@ class ConfigFactory:
     def create_facebook_denoiser_config() -> TranscriptionConfig:
         """Create configuration with Facebook Denoiser for noisy audio."""
         return TranscriptionConfig(
-            model_name="large-v3",
+            model_name="nezamisafa/whisper-persian-v4",
             language="fa",
+            use_huggingface_model=True,
             chunk_duration_ms=20000,
             overlap_ms=400,
             enable_preprocessing=True,
@@ -271,7 +275,8 @@ class ConfigFactory:
     def create_high_quality_config() -> TranscriptionConfig:
         """Create configuration optimized for quality."""
         return TranscriptionConfig(
-            model_name="large-v3",
+            model_name="nezamisafa/whisper-persian-v4",
+            use_huggingface_model=True,
             chunk_duration_ms=15000,
             overlap_ms=300,
             num_workers=6,  # Increased from 2 to 6
@@ -291,8 +296,9 @@ class ConfigFactory:
     def create_persian_optimized_config() -> TranscriptionConfig:
         """Create configuration specifically optimized for Persian transcription."""
         return TranscriptionConfig(
-            model_name="large-v3",
+            model_name="nezamisafa/whisper-persian-v4",
             language="fa",
+            use_huggingface_model=True,
             chunk_duration_ms=10000,
             overlap_ms=100,
             num_workers=8,  # Increased from 2 to 6

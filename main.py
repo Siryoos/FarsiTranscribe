@@ -24,8 +24,9 @@ def create_parser() -> argparse.ArgumentParser:
                        default="memory-optimized",
                        help="Quality preset")
     parser.add_argument("--model", "-m", 
-                       choices=["tiny", "base", "small", "medium", "large"],
-                       help="Whisper model (overrides quality preset)")
+                       choices=["nezamisafa/whisper-persian-v4", "tiny", "base", "small", "medium", "large"],
+                       default="nezamisafa/whisper-persian-v4",
+                       help="Whisper model (default: Persian fine-tuned model)")
     parser.add_argument("--output-dir", "-o", default="./output",
                        help="Output directory")
     parser.add_argument("--no-preview", action="store_true",
@@ -48,6 +49,11 @@ def get_config(args: argparse.Namespace) -> TranscriptionConfig:
     # Apply overrides
     if args.model:
         config.model_name = args.model
+        # Set Hugging Face flag for Persian model
+        if args.model == "nezamisafa/whisper-persian-v4":
+            config.use_huggingface_model = True
+        else:
+            config.use_huggingface_model = False
     if args.output_dir:
         config.output_directory = args.output_dir
     if args.no_preview:

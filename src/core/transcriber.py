@@ -21,11 +21,23 @@ import numpy as np
 from pydub import AudioSegment
 from tqdm import tqdm
 import psutil
+from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
 from .config import TranscriptionConfig
-from ..utils.file_manager import TranscriptionFileManager
-from ..utils.repetition_detector import RepetitionDetector
-from ..utils.sentence_extractor import SentenceExtractor
+
+# Handle imports with fallback for direct execution
+try:
+    from ..utils.file_manager import TranscriptionFileManager
+    from ..utils.repetition_detector import RepetitionDetector
+    from ..utils.sentence_extractor import SentenceExtractor
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from utils.file_manager import TranscriptionFileManager
+    from utils.repetition_detector import RepetitionDetector
+    from utils.sentence_extractor import SentenceExtractor
 
 
 class UnifiedMemoryManager:
@@ -188,12 +200,25 @@ class OptimizedWhisperTranscriber:
         
         with self._model_lock:
             if model_key not in self._model_cache:
-                self.logger.info(f"Loading Whisper {self.config.model_name} model...")
+                self.logger.info(f"Loading model: {self.config.model_name}...")
                 start_time = time.time()
                 
                 try:
-                    model = whisper.load_model(self.config.model_name, device=self.config.device)
-                    self._model_cache[model_key] = model
+                    if self.config.use_huggingface_model:
+                        # Load Hugging Face model
+                        self.logger.info("Loading Hugging Face Whisper model...")
+                        model = WhisperForConditionalGeneration.from_pretrained(
+                            self.config.model_name,
+                            torch_dtype=torch.float16 if self.config.device == "cuda" else torch.float32,
+                            device_map="auto" if self.config.device == "cuda" else None
+                        )
+                        processor = WhisperProcessor.from_pretrained(self.config.model_name)
+                        self._model_cache[model_key] = {"model": model, "processor": processor}
+                    else:
+                        # Load OpenAI Whisper model
+                        model = whisper.load_model(self.config.model_name, device=self.config.device)
+                        self._model_cache[model_key] = {"model": model, "processor": None}
+                    
                     self.logger.info(f"Model loaded in {time.time() - start_time:.2f}s")
                 except Exception as e:
                     self.logger.error(f"Model loading failed: {e}")
@@ -212,19 +237,51 @@ class OptimizedWhisperTranscriber:
                 chunk_array = chunk_array.mean(axis=1)
             chunk_array = chunk_array.astype(np.float32)
             
-            # Transcribe with anti-repetition settings
-            result = self.model.transcribe(
-                chunk_array,
-                language=self.config.language,
-                verbose=False,
-                temperature=self.config.temperature,
-                condition_on_previous_text=self.config.condition_on_previous_text,
-                no_speech_threshold=self.config.no_speech_threshold,
-                logprob_threshold=self.config.logprob_threshold,
-                compression_ratio_threshold=self.config.compression_ratio_threshold
-            )
+            cached_model = self._get_cached_model()
+            model = cached_model["model"]
+            processor = cached_model["processor"]
             
-            text = result["text"].strip()
+            if self.config.use_huggingface_model and processor is not None:
+                # Use Hugging Face model
+                # Prepare input
+                input_features = processor(
+                    chunk_array, 
+                    sampling_rate=self.config.target_sample_rate, 
+                    return_tensors="pt"
+                ).input_features
+                
+                if self.config.device == "cuda":
+                    input_features = input_features.to(self.config.device)
+                
+                # Generate transcription
+                predicted_ids = model.generate(
+                    input_features,
+                    language=self.config.language,
+                    task="transcribe",
+                    temperature=self.config.temperature,
+                    do_sample=self.config.temperature > 0,
+                    no_speech_threshold=self.config.no_speech_threshold,
+                    logprob_threshold=self.config.logprob_threshold,
+                    compression_ratio_threshold=self.config.compression_ratio_threshold
+                )
+                
+                # Decode transcription
+                transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+                text = transcription.strip()
+            else:
+                # Use OpenAI Whisper model
+                result = model.transcribe(
+                    chunk_array,
+                    language=self.config.language,
+                    verbose=False,
+                    temperature=self.config.temperature,
+                    condition_on_previous_text=self.config.condition_on_previous_text,
+                    no_speech_threshold=self.config.no_speech_threshold,
+                    logprob_threshold=self.config.logprob_threshold,
+                    compression_ratio_threshold=self.config.compression_ratio_threshold
+                )
+                text = result["text"].strip()
+            
             return RepetitionDetector.clean_repetitive_text(text, self.config) if text else ""
             
         except Exception as e:

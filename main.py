@@ -20,24 +20,33 @@ def create_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("audio_file", help="Audio file path")
     parser.add_argument(
-        "--quality", "-q",
+        "--quality",
+        "-q",
         choices=["fast", "balanced", "high", "memory-optimized", "95-percent"],
         default="memory-optimized",
-        help="Quality preset (95-percent for maximum quality)"
+        help="Quality preset (95-percent for maximum quality)",
     )
     parser.add_argument(
-        "--model", "-m",
-        choices=["nezamisafa/whisper-persian-v4", "tiny", "base", "small", "medium", "large"],
+        "--model",
+        "-m",
+        choices=[
+            "nezamisafa/whisper-persian-v4",
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large",
+        ],
         default="nezamisafa/whisper-persian-v4",
-        help="Whisper model (default: Persian fine-tuned model)"
+        help="Whisper model (default: Persian fine-tuned model)",
     )
     parser.add_argument(
-        "--output-dir", "-o", default="./output",
-        help="Output directory"
+        "--output-dir", "-o", default="./output", help="Output directory"
     )
     parser.add_argument(
-        "--no-preview", action="store_true",
-        help="Disable transcription preview"
+        "--no-preview",
+        action="store_true",
+        help="Disable transcription preview",
     )
 
     return parser
@@ -50,7 +59,7 @@ def get_config(args: argparse.Namespace) -> TranscriptionConfig:
         "balanced": ConfigFactory.create_optimized_config,
         "high": ConfigFactory.create_high_quality_config,
         "memory-optimized": ConfigFactory.create_memory_optimized_config,
-        "95-percent": ConfigFactory.create_95_percent_quality_config
+        "95-percent": ConfigFactory.create_95_percent_quality_config,
     }
 
     config = config_map[args.quality]()
@@ -100,7 +109,9 @@ def main():
             transcription = transcriber.transcribe_file(args.audio_file)
 
             if transcription:
-                print(f"\n✅ Success! {len(transcription)} characters transcribed")
+                print(
+                    f"\n✅ Success! {len(transcription)} characters transcribed"
+                )
             else:
                 print("⚠️  No transcription generated")
 

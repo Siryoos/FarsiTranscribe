@@ -13,9 +13,9 @@ from .utils.sentence_extractor import SentenceExtractor
 
 __all__ = [
     "UnifiedAudioTranscriber",
-    "TranscriptionConfig", 
+    "TranscriptionConfig",
     "ConfigFactory",
     "TranscriptionFileManager",
     "RepetitionDetector",
-    "SentenceExtractor"
+    "SentenceExtractor",
 ]

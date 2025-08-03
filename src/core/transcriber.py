@@ -253,17 +253,24 @@ class OptimizedWhisperTranscriber:
                 if self.config.device == "cuda":
                     input_features = input_features.to(self.config.device)
                 
-                # Generate transcription
-                predicted_ids = model.generate(
-                    input_features,
-                    language=self.config.language,
-                    task="transcribe",
-                    temperature=self.config.temperature,
-                    do_sample=self.config.temperature > 0,
-                    no_speech_threshold=self.config.no_speech_threshold,
-                    logprob_threshold=self.config.logprob_threshold,
-                    compression_ratio_threshold=self.config.compression_ratio_threshold
-                )
+                # Generate transcription with Hugging Face compatible parameters
+                generation_kwargs = {
+                    "language": self.config.language,
+                    "task": "transcribe"
+                }
+                
+                # Only add temperature if it's greater than 0
+                if self.config.temperature > 0:
+                    generation_kwargs["temperature"] = self.config.temperature
+                    generation_kwargs["do_sample"] = True
+                else:
+                    generation_kwargs["do_sample"] = False
+                
+                # Add optional parameters that are supported by Hugging Face Whisper
+                if hasattr(model.config, 'no_speech_threshold'):
+                    generation_kwargs["no_speech_threshold"] = self.config.no_speech_threshold
+                
+                predicted_ids = model.generate(input_features, **generation_kwargs)
                 
                 # Decode transcription
                 transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]

@@ -44,7 +44,7 @@ class TranscriptionConfig:
     noise_threshold: float = 0.4
     
     # Advanced settings
-    temperature: float = 0.0
+    temperature: float = 0.0  # 0.0 for deterministic, > 0 for sampling
     condition_on_previous_text: bool = False
     no_speech_threshold: float = 0.6
     logprob_threshold: float = -1.0
@@ -180,7 +180,7 @@ class ConfigFactory:
             num_workers=6,
             repetition_threshold=0.85,
             max_word_repetition=2,
-            temperature=0.0,
+            temperature=0.0,  # Deterministic for better consistency
             condition_on_previous_text=True,
             enable_preprocessing=True,
             enable_advanced_preprocessing=True,
@@ -305,7 +305,7 @@ class ConfigFactory:
             repetition_threshold=0.85,
             max_word_repetition=2,
             min_chunk_confidence=0.7,
-            temperature=0.01,
+            temperature=0.0,  # Deterministic for better consistency
             condition_on_previous_text=True,
             no_speech_threshold=0.6,
             logprob_threshold=-1.0,

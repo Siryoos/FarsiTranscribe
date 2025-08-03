@@ -1,0 +1,25 @@
+[flake8]
+max-line-length = 79
+max-complexity = 10
+select = B,C,E,F,W,T4,B9
+ignore = 
+    E203,  # whitespace before ':'
+    E501,  # line too long (handled by black)
+    W503,  # line break before binary operator
+    B008,  # do not perform function calls in argument defaults
+    C901,  # too complex
+exclude = 
+    .git,
+    __pycache__,
+    venv,
+    .venv,
+    .eggs,
+    *.egg,
+    build,
+    dist,
+    .pytest_cache,
+    .mypy_cache
+per-file-ignores = 
+    __init__.py:F401
+    tests/*:D100,D101,D102,D103
+docstring-convention = google

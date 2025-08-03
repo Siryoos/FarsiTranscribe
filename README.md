@@ -1,9 +1,15 @@
 # FarsiTranscribe 2.0
 
+[![CI](https://github.com/siryoos/FarsiTranscribe/workflows/CI/badge.svg)](https://github.com/siryoos/FarsiTranscribe/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/siryoos/FarsiTranscribe/branch/main/graph/badge.svg)](https://codecov.io/gh/siryoos/FarsiTranscribe)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/farsitranscribe.svg)](https://pypi.org/project/farsitranscribe/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status: Finalized](https://img.shields.io/badge/Status-Finalized-green.svg)](https://github.com/siryoos/FarsiTranscribe)
 [![PEP 8 Compliant](https://img.shields.io/badge/PEP%208-Compliant-blue.svg)](https://www.python.org/dev/peps/pep-0008/)
+[![Dependencies Status](https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen.svg)](https://github.com/siryoos/FarsiTranscribe/network/updates)
+[![Security: Trivy](https://img.shields.io/badge/Security-Trivy-blue.svg)](https://github.com/aquasecurity/trivy)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
 A clean, efficient, and extensible audio transcription system optimized for Persian/Farsi language using OpenAI's Whisper model. **Project Status: ✅ FINALIZED** - Fully optimized with PEP 8 compliance, DRY principles, and consolidated architecture.
 

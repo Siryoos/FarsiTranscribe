@@ -29,12 +29,3 @@ hazm>=0.7.0
 
 # Advanced Quality Features
 scikit-learn>=1.0.0
-
-# Optional but recommended for development
-# pytest>=7.0.0
-# black>=23.0.0
-# flake8>=6.0.0
-
-# For GPU support (optional):
-# Install PyTorch with CUDA support:
-# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118

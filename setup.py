@@ -36,14 +36,23 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "openai-whisper>=20230918",
+        "openai-whisper>=20231117",
         "torch>=2.0.0",
         "torchaudio>=2.0.0",
         "numpy>=1.24.0",
+        "transformers>=4.30.0",
+        "huggingface-hub>=0.15.0",
+        "requests>=2.28.0",
+        "urllib3>=1.26.0",
         "pydub>=0.25.1",
         "ffmpeg-python>=0.2.0",
+        "librosa>=0.10.0",
+        "soundfile>=0.12.0",
+        "scipy>=1.9.0",
         "tqdm>=4.65.0",
         "psutil>=5.9.0",
+        "hazm>=0.7.0",
+        "scikit-learn>=1.0.0",
     ],
     extras_require={
         "dev": [
@@ -52,14 +61,10 @@ setup(
             "flake8>=6.0.0",
             "mypy>=1.0.0",
         ],
-        "gpu": [
-            # GPU dependencies require special installation
-            # Run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-        ],
     },
     entry_points={
         "console_scripts": [
-            "farsi-transcribe=farsi_transcribe.cli:main",
+            "farsi-transcribe=main:main",
         ],
     },
     include_package_data=True,

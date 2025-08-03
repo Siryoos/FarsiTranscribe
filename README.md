@@ -15,6 +15,7 @@ A clean, efficient, and extensible audio transcription system optimized for Pers
 - **📊 Multiple Output Formats**: Text, JSON, and timestamped segments
 - **🖥️ CPU/GPU Support**: Optimized for both CPU and GPU processing
 - **🤗 Hugging Face Integration**: Native support for Hugging Face models
+- **🧹 PEP 8 Compliant**: Clean, maintainable code following Python standards
 
 ## 📋 Table of Contents
 
@@ -24,7 +25,6 @@ A clean, efficient, and extensible audio transcription system optimized for Pers
 - [Usage](#-usage)
 - [Configuration](#-configuration)
 - [API Reference](#-api-reference)
-- [Extending FarsiTranscribe](#-extending-farsitranscribe)
 - [Examples](#-examples)
 - [Performance Tips](#-performance-tips)
 - [Troubleshooting](#-troubleshooting)
@@ -75,7 +75,7 @@ brew install ffmpeg
 
 ### Persian Model Integration
 
-This project now uses the **`nezamisafa/whisper-persian-v4`** model by default - a fine-tuned Whisper large-v3 model specifically optimized for Persian/Farsi transcription. This model provides superior accuracy for Persian language compared to the standard Whisper models.
+This project uses the **`nezamisafa/whisper-persian-v4`** model by default - a fine-tuned Whisper large-v3 model specifically optimized for Persian/Farsi transcription. This model provides superior accuracy for Persian language compared to the standard Whisper models.
 
 ### Command Line
 
@@ -94,6 +94,12 @@ python main.py audio.mp3 --model large
 
 # Custom output directory
 python main.py audio.mp3 --output-dir results/
+
+# Memory optimized (default)
+python main.py audio.mp3 --quality memory-optimized
+
+# Maximum quality (95% quality preset)
+python main.py audio.mp3 --quality 95-percent
 ```
 
 ### Python API

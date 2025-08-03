@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "farsitranscribe"
-version = "1.0.0"
-description = "A modular audio transcription system with anti-repetition features for Persian (Farsi)"
+version = "2.0.0"
+description = "A clean, efficient, and extensible audio transcription system optimized for Persian/Farsi language"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "FarsiTranscribe Team", email = "contact@farsitranscribe.com"}
+    {name = "FarsiTranscribe Team", email = "siryoosa@gmail.com"}
 ]
 maintainers = [
-    {name = "FarsiTranscribe Team", email = "contact@farsitranscribe.com"}
+    {name = "FarsiTranscribe Team", email = "siryoosa@gmail.com"}
 ]
 keywords = ["transcription", "audio", "speech-to-text", "persian", "farsi", "whisper", "nlp", "ai"]
 classifiers = [
@@ -29,45 +29,52 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Natural Language :: Persian",
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "torch>=1.9.0",
-    "whisper-openai>=20231117",
+    "openai-whisper>=20231117",
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+    "numpy>=1.24.0",
+    "transformers>=4.30.0",
+    "huggingface-hub>=0.15.0",
+    "requests>=2.28.0",
+    "urllib3>=1.26.0",
     "pydub>=0.25.1",
-    "numpy>=1.21.0",
-    "tqdm>=4.62.0",
-    "rich>=10.0.0",
+    "ffmpeg-python>=0.2.0",
+    "librosa>=0.10.0",
+    "soundfile>=0.12.0",
+    "scipy>=1.9.0",
+    "tqdm>=4.65.0",
+    "psutil>=5.9.0",
+    "hazm>=0.7.0",
+    "scikit-learn>=1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=6.0",
-    "pytest-cov>=2.0",
-    "black>=21.0",
-    "flake8>=3.8",
-    "mypy>=0.800",
-]
-docs = [
-    "sphinx>=4.0",
-    "sphinx-rtd-theme>=1.0",
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
 ]
 
 [project.scripts]
 farsitranscribe = "main:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/farsitranscribe"
-Documentation = "https://farsitranscribe.readthedocs.io/"
-Repository = "https://github.com/yourusername/farsitranscribe"
-"Bug Tracker" = "https://github.com/yourusername/farsitranscribe/issues"
+Homepage = "https://github.com/siryoos/FarsiTranscribe"
+Documentation = "https://github.com/siryoos/FarsiTranscribe/wiki"
+Repository = "https://github.com/siryoos/FarsiTranscribe"
+"Bug Tracker" = "https://github.com/siryoos/FarsiTranscribe/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
 
 [tool.black]
-line-length = 88
+line-length = 79
 target-version = ['py38']
 include = '\.pyi?$'
 extend-exclude = '''
@@ -121,6 +128,8 @@ module = [
     "torch.*",
     "whisper.*",
     "pydub.*",
-    "rich.*",
+    "transformers.*",
+    "librosa.*",
+    "hazm.*",
 ]
 ignore_missing_imports = true 

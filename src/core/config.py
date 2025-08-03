@@ -11,75 +11,75 @@ import torch
 @dataclass
 class TranscriptionConfig:
     """Enhanced configuration class for transcription parameters."""
-    
+
     # Model settings
     model_name: str = "nezamisafa/whisper-persian-v4"  # Persian fine-tuned model
     language: str = "fa"
     use_huggingface_model: bool = True  # Use Hugging Face model instead of OpenAI Whisper
-    
+
     # Audio processing
     chunk_duration_ms: int = 20000
     overlap_ms: int = 200
     target_sample_rate: int = 16000
     audio_format: str = "wav"
-    
+
     # Processing settings - OPTIMIZED FOR CPU
     device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")
     batch_size: int = field(default_factory=lambda: TranscriptionConfig._get_optimal_batch_size())
     num_workers: int = field(default_factory=lambda: min(6, os.cpu_count() or 4))  # Increased from 2 to 6
-    
+
     # Output settings
     output_directory: str = field(default_factory=lambda: os.getcwd())
     save_individual_parts: bool = False
     unified_filename_suffix: str = "_unified_transcription.txt"
-    
+
     # Preview settings
     enable_sentence_preview: bool = True
     preview_sentence_count: int = 2
-    
+
     # Quality and deduplication settings
     repetition_threshold: float = 0.85
     max_word_repetition: int = 2
     min_chunk_confidence: float = 0.7
     noise_threshold: float = 0.4
-    
+
     # Advanced settings
     temperature: float = 0.0  # 0.0 for deterministic, > 0 for sampling
     condition_on_previous_text: bool = False
     no_speech_threshold: float = 0.6
     logprob_threshold: float = -1.0
     compression_ratio_threshold: float = 2.0
-    
+
     # CPU Optimization settings
     use_parallel_audio_prep: bool = True
     chunk_prefetch_count: int = 4
     memory_efficient_mode: bool = True
-    
+
     # Memory Management settings
     memory_threshold_mb: int = 1024  # 1GB threshold for cleanup
     cleanup_interval_seconds: int = 30  # Cleanup every 30 seconds
     streaming_chunk_size_mb: int = 50  # 50MB chunks for streaming
     enable_memory_monitoring: bool = True
-    
+
     # Audio Preprocessing settings (Quick Wins)
     enable_preprocessing: bool = True
     enable_noise_reduction: bool = True
     enable_voice_activity_detection: bool = True
     enable_speech_enhancement: bool = True
     use_smart_chunking: bool = True
-    
+
     # Advanced Preprocessing settings
     enable_advanced_preprocessing: bool = False
     enable_facebook_denoiser: bool = False
     enable_persian_optimization: bool = True
     adaptive_processing: bool = True
-    
+
     # Enhanced Quality Improvement settings
     enable_enhanced_preprocessing: bool = True
     enable_text_postprocessing: bool = True
     convert_persian_numbers: bool = False  # Keep Persian numbers by default
     chunk_duration_for_conversations: float = 30.0  # seconds
-    
+
     # Advanced 95% Quality Features
     enable_model_ensemble: bool = True
     enable_speaker_diarization: bool = True
@@ -114,7 +114,10 @@ class TranscriptionConfig:
         """Optimize settings based on available device."""
         if self.device == "cuda" and torch.cuda.is_available():
             gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
-            self.batch_size = max(2, int(gpu_memory // 4)) if self.model_name.startswith("large") else max(4, int(gpu_memory // 2))
+            if self.model_name.startswith("large"):
+                self.batch_size = max(2, int(gpu_memory // 4))
+            else:
+                self.batch_size = max(4, int(gpu_memory // 2))
             self.batch_size = min(self.batch_size, 6)
         else:
             self.device = "cpu"

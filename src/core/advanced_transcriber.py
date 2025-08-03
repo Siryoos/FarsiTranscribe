@@ -240,11 +240,19 @@ class AdvancedTranscriber:
                 audio_data
             )
         else:
-            (
-                transcription,
-                metadata,
-            ) = self.fallback_transcriber.transcribe_chunk(audio_data)
+            # Fix the unpacking issue by properly handling the return value
+            result = self.fallback_transcriber.transcribe_chunk(audio_data)
+            if isinstance(result, tuple) and len(result) == 2:
+                transcription, metadata = result
+            else:
+                # If transcribe_chunk returns only a string, create metadata
+                transcription = result if isinstance(result, str) else str(result)
+                metadata = {}
 
+        # Ensure metadata is a dictionary
+        if not isinstance(metadata, dict):
+            metadata = {}
+        
         metadata["speaker_count"] = 1
         metadata["total_segments"] = 1
 

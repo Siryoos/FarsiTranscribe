@@ -7,6 +7,7 @@ import argparse
 import sys
 import os
 from pathlib import Path
+from typing import Dict, Callable
 
 from src import UnifiedAudioTranscriber
 from src.core.config import TranscriptionConfig, ConfigFactory
@@ -54,7 +55,8 @@ def create_parser() -> argparse.ArgumentParser:
 
 def get_config(args: argparse.Namespace) -> TranscriptionConfig:
     """Get configuration from arguments."""
-    config_map = {
+    
+    config_map: Dict[str, Callable[[], TranscriptionConfig]] = {
         "fast": ConfigFactory.create_fast_config,
         "balanced": ConfigFactory.create_optimized_config,
         "high": ConfigFactory.create_high_quality_config,
@@ -62,7 +64,11 @@ def get_config(args: argparse.Namespace) -> TranscriptionConfig:
         "95-percent": ConfigFactory.create_95_percent_quality_config,
     }
 
-    config = config_map[args.quality]()
+    config_func = config_map.get(args.quality)
+    if config_func is None:
+        raise ValueError(f"Unknown quality preset: {args.quality}")
+    
+    config = config_func()
 
     # Apply overrides
     if args.model:

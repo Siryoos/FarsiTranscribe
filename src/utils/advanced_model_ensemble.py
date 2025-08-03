@@ -88,12 +88,14 @@ class AdvancedModelEnsemble:
             if "whisper" in model_id.lower():
                 model = WhisperForConditionalGeneration.from_pretrained(
                     model_id,
-                    torch_dtype=torch.float16
-                    if self.config.device == "cuda"
-                    else torch.float32,
-                    device_map="auto"
-                    if self.config.device == "cuda"
-                    else None,
+                    torch_dtype=(
+                        torch.float16
+                        if self.config.device == "cuda"
+                        else torch.float32
+                    ),
+                    device_map=(
+                        "auto" if self.config.device == "cuda" else None
+                    ),
                     local_files_only=False,
                     resume_download=True,
                 )
@@ -105,12 +107,14 @@ class AdvancedModelEnsemble:
             elif "wav2vec2" in model_id.lower():
                 model = Wav2Vec2ForCTC.from_pretrained(
                     model_id,
-                    torch_dtype=torch.float16
-                    if self.config.device == "cuda"
-                    else torch.float32,
-                    device_map="auto"
-                    if self.config.device == "cuda"
-                    else None,
+                    torch_dtype=(
+                        torch.float16
+                        if self.config.device == "cuda"
+                        else torch.float32
+                    ),
+                    device_map=(
+                        "auto" if self.config.device == "cuda" else None
+                    ),
                     local_files_only=False,
                     resume_download=True,
                 )
@@ -123,12 +127,14 @@ class AdvancedModelEnsemble:
                 # Generic CTC model
                 model = AutoModelForCTC.from_pretrained(
                     model_id,
-                    torch_dtype=torch.float16
-                    if self.config.device == "cuda"
-                    else torch.float32,
-                    device_map="auto"
-                    if self.config.device == "cuda"
-                    else None,
+                    torch_dtype=(
+                        torch.float16
+                        if self.config.device == "cuda"
+                        else torch.float32
+                    ),
+                    device_map=(
+                        "auto" if self.config.device == "cuda" else None
+                    ),
                     local_files_only=False,
                     resume_download=True,
                 )

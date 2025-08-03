@@ -75,12 +75,14 @@ class TranscriptionFileManager:
             "original_words": len(original_content.split()),
             "cleaned_words": len(cleaned_content.split()),
             "reduction_percentage": (
-                (len(original_content) - len(cleaned_content))
-                / len(original_content)
-                * 100
-            )
-            if original_content
-            else 0,
+                (
+                    (len(original_content) - len(cleaned_content))
+                    / len(original_content)
+                    * 100
+                )
+                if original_content
+                else 0
+            ),
             "config": self.config.to_dict(),
         }
 

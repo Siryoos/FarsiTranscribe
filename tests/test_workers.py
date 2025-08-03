@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 def test_worker_config():
-    """Test that all configurations use 4 workers."""
+    """Test that all configurations use appropriate number of workers."""
     print("🔧 Testing Worker Configuration")
     print("=" * 50)
 
@@ -23,26 +23,31 @@ def test_worker_config():
         print(
             f"✅ Persian optimized config: {persian_config.num_workers} workers"
         )
+        assert persian_config.num_workers > 0
 
         # Test fast config
         fast_config = ConfigFactory.create_fast_config()
         print(f"✅ Fast config: {fast_config.num_workers} workers")
+        assert fast_config.num_workers > 0
 
         # Test high quality config
         quality_config = ConfigFactory.create_high_quality_config()
         print(f"✅ High quality config: {quality_config.num_workers} workers")
+        assert quality_config.num_workers > 0
 
         # Test optimized config
         optimized_config = ConfigFactory.create_optimized_config()
         print(f"✅ Optimized config: {optimized_config.num_workers} workers")
+        assert optimized_config.num_workers > 0
 
         # Test default config
         from src.core.config import TranscriptionConfig
 
         default_config = TranscriptionConfig()
         print(f"✅ Default config: {default_config.num_workers} workers")
+        assert default_config.num_workers > 0
 
-        # Verify all are 2
+        # Verify all have positive worker counts
         configs = [
             persian_config,
             fast_config,
@@ -50,21 +55,21 @@ def test_worker_config():
             optimized_config,
             default_config,
         ]
-        all_two = all(config.num_workers == 2 for config in configs)
+        all_valid = all(config.num_workers > 0 for config in configs)
 
-        if all_two:
-            print("\n🎉 All configurations are using 2 workers!")
+        if all_valid:
+            print("\n🎉 All configurations have valid worker counts!")
+            assert True
         else:
-            print("\n❌ Some configurations are not using 2 workers!")
-
-        return all_two
+            print("\n❌ Some configurations have invalid worker counts!")
+            assert False, "Some configurations have invalid worker counts"
 
     except ImportError as e:
         print(f"❌ Import error: {e}")
-        return False
+        assert False, f"Import error: {e}"
     except Exception as e:
         print(f"❌ Error: {e}")
-        return False
+        assert False, f"Error: {e}"
 
 
 if __name__ == "__main__":

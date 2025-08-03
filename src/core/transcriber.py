@@ -287,12 +287,16 @@ class OptimizedWhisperTranscriber:
 
                         model = WhisperForConditionalGeneration.from_pretrained(
                             self.config.model_name,
-                            torch_dtype=torch.float16
-                            if self.config.device == "cuda"
-                            else torch.float32,
-                            device_map="auto"
-                            if self.config.device == "cuda"
-                            else None,
+                            torch_dtype=(
+                                torch.float16
+                                if self.config.device == "cuda"
+                                else torch.float32
+                            ),
+                            device_map=(
+                                "auto"
+                                if self.config.device == "cuda"
+                                else None
+                            ),
                             local_files_only=False,  # Allow download
                             resume_download=True,  # Resume interrupted downloads
                         )
@@ -333,12 +337,16 @@ class OptimizedWhisperTranscriber:
 
                             model = WhisperForConditionalGeneration.from_pretrained(
                                 self.config.model_name,
-                                torch_dtype=torch.float16
-                                if self.config.device == "cuda"
-                                else torch.float32,
-                                device_map="auto"
-                                if self.config.device == "cuda"
-                                else None,
+                                torch_dtype=(
+                                    torch.float16
+                                    if self.config.device == "cuda"
+                                    else torch.float32
+                                ),
+                                device_map=(
+                                    "auto"
+                                    if self.config.device == "cuda"
+                                    else None
+                                ),
                                 local_files_only=False,
                                 resume_download=True,
                             )
@@ -406,9 +414,9 @@ class OptimizedWhisperTranscriber:
 
                 # Add optional parameters that are supported by Hugging Face Whisper
                 if hasattr(model.config, "no_speech_threshold"):
-                    generation_kwargs[
-                        "no_speech_threshold"
-                    ] = self.config.no_speech_threshold
+                    generation_kwargs["no_speech_threshold"] = (
+                        self.config.no_speech_threshold
+                    )
 
                 predicted_ids = model.generate(
                     input_features, **generation_kwargs

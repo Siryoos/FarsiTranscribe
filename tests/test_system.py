@@ -12,42 +12,22 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 def test_imports():
-    """Test all major imports."""
-    print("🔍 Testing imports...")
+    """Test that all modules can be imported."""
+    print("\n🔍 Testing imports...")
 
     try:
+        from src import UnifiedAudioTranscriber
         from src.core.config import TranscriptionConfig, ConfigFactory
-
-        print("✅ Configuration module imported successfully")
-    except ImportError as e:
-        print(f"❌ Configuration import failed: {e}")
-        return False
-
-    try:
-        from src.utils.terminal_display import terminal_display
-
-        print("✅ Terminal display module imported successfully")
-    except ImportError as e:
-        print(f"❌ Terminal display import failed: {e}")
-        return False
-
-    try:
         from src.utils.sentence_extractor import SentenceExtractor
-
-        print("✅ Sentence extractor module imported successfully")
-    except ImportError as e:
-        print(f"❌ Sentence extractor import failed: {e}")
-        return False
-
-    try:
         from src.utils.repetition_detector import RepetitionDetector
+        from src.utils.file_manager import TranscriptionFileManager
 
-        print("✅ Repetition detector module imported successfully")
-    except ImportError as e:
-        print(f"❌ Repetition detector import failed: {e}")
-        return False
+        print("✅ All core modules imported successfully")
+        assert True  # Use assertion instead of return
 
-    return True
+    except Exception as e:
+        print(f"❌ Import test failed: {e}")
+        assert False, f"Import test failed: {e}"
 
 
 def test_unicode_support():
@@ -66,14 +46,14 @@ def test_unicode_support():
         # Test Unicode support check
         if terminal_display.check_unicode_support():
             print("✅ Unicode support is working properly")
-            return True
+            assert True
         else:
             print("⚠️ Unicode support may have issues")
-            return False
+            assert False, "Unicode support has issues"
 
     except Exception as e:
         print(f"❌ Unicode test failed: {e}")
-        return False
+        assert False, f"Unicode test failed: {e}"
 
 
 def test_configuration():
@@ -86,26 +66,28 @@ def test_configuration():
         # Test basic configuration
         config = TranscriptionConfig()
         print(f"✅ Basic configuration created: {config.model_name} model")
+        assert config.model_name is not None
 
         # Test factory methods
         fast_config = ConfigFactory.create_fast_config()
         print(f"✅ Fast configuration created: {fast_config.model_name} model")
+        assert fast_config.model_name == "base"
 
         quality_config = ConfigFactory.create_high_quality_config()
         print(
             f"✅ Quality configuration created: {quality_config.model_name} model"
         )
+        assert quality_config.model_name == "large-v3"
 
         optimized_config = ConfigFactory.create_optimized_config()
         print(
             f"✅ Optimized configuration created: {optimized_config.model_name} model"
         )
-
-        return True
+        assert optimized_config.model_name == "nezamisafa/whisper-persian-v4"
 
     except Exception as e:
         print(f"❌ Configuration test failed: {e}")
-        return False
+        assert False, f"Configuration test failed: {e}"
 
 
 def test_utilities():
@@ -121,6 +103,7 @@ def test_utilities():
         test_text = "این جمله اول است. این جمله دوم است. و این جمله سوم است."
         sentences = SentenceExtractor.extract_sentences(test_text, 3)
         print(f"✅ Sentence extraction: {len(sentences)} sentences extracted")
+        assert len(sentences) > 0
 
         # Test repetition detection
         repetitive_text = "سلام سلام سلام دنیا دنیا دنیا"
@@ -130,12 +113,11 @@ def test_utilities():
         print(
             f"✅ Repetition detection: Text cleaned from {len(repetitive_text)} to {len(cleaned_text)} characters"
         )
-
-        return True
+        assert len(cleaned_text) <= len(repetitive_text)
 
     except Exception as e:
         print(f"❌ Utility test failed: {e}")
-        return False
+        assert False, f"Utility test failed: {e}"
 
 
 def main():

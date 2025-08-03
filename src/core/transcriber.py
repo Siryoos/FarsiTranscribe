@@ -22,6 +22,9 @@ from pydub import AudioSegment
 from tqdm import tqdm
 import psutil
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .config import TranscriptionConfig
 
@@ -192,10 +195,31 @@ class OptimizedWhisperTranscriber:
     def __init__(self, config: TranscriptionConfig):
         self.config = config
         self.logger = logging.getLogger(__name__)
-        self.model = self._get_cached_model()
+        self._model_cache = {}
+        self._model_lock = threading.Lock()
+        
+        # Configure retry strategy for Hugging Face downloads
+        self._setup_hf_download_retry()
+    
+    def _setup_hf_download_retry(self):
+        """Setup retry strategy for Hugging Face model downloads."""
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        
+        # Configure session for Hugging Face downloads
+        self._hf_session = requests.Session()
+        self._hf_session.mount("https://", adapter)
+        self._hf_session.mount("http://", adapter)
+        
+        # Set longer timeout for large model downloads
+        self._hf_session.timeout = (30, 300)  # (connect_timeout, read_timeout)
     
     def _get_cached_model(self):
-        """Get or create cached Whisper model."""
+        """Get cached model or load new one with retry logic."""
         model_key = f"{self.config.model_name}_{self.config.device}"
         
         with self._model_lock:
@@ -205,14 +229,29 @@ class OptimizedWhisperTranscriber:
                 
                 try:
                     if self.config.use_huggingface_model:
-                        # Load Hugging Face model
+                        # Load Hugging Face model with retry logic
                         self.logger.info("Loading Hugging Face Whisper model...")
+                        
+                        # Configure Hugging Face Hub to use our session
+                        import huggingface_hub
+                        try:
+                            huggingface_hub.set_http_backend(self._hf_session)
+                        except AttributeError:
+                            # Fallback for older versions
+                            self.logger.info("Using default Hugging Face Hub HTTP backend")
+                        
                         model = WhisperForConditionalGeneration.from_pretrained(
                             self.config.model_name,
                             torch_dtype=torch.float16 if self.config.device == "cuda" else torch.float32,
-                            device_map="auto" if self.config.device == "cuda" else None
+                            device_map="auto" if self.config.device == "cuda" else None,
+                            local_files_only=False,  # Allow download
+                            resume_download=True,   # Resume interrupted downloads
                         )
-                        processor = WhisperProcessor.from_pretrained(self.config.model_name)
+                        processor = WhisperProcessor.from_pretrained(
+                            self.config.model_name,
+                            local_files_only=False,
+                            resume_download=True,
+                        )
                         self._model_cache[model_key] = {"model": model, "processor": processor}
                     else:
                         # Load OpenAI Whisper model
@@ -221,10 +260,34 @@ class OptimizedWhisperTranscriber:
                     
                     self.logger.info(f"Model loaded in {time.time() - start_time:.2f}s")
                 except Exception as e:
-                    self.logger.error(f"Model loading failed: {e}")
-                    raise
-            
-            return self._model_cache[model_key]
+                    self.logger.error(f"Failed to load model: {e}")
+                    if self.config.use_huggingface_model:
+                        self.logger.info("Attempting to load model with increased timeout...")
+                        try:
+                            # Try with even longer timeout
+                            self._hf_session.timeout = (60, 600)  # 10 minutes read timeout
+                            
+                            model = WhisperForConditionalGeneration.from_pretrained(
+                                self.config.model_name,
+                                torch_dtype=torch.float16 if self.config.device == "cuda" else torch.float32,
+                                device_map="auto" if self.config.device == "cuda" else None,
+                                local_files_only=False,
+                                resume_download=True,
+                            )
+                            processor = WhisperProcessor.from_pretrained(
+                                self.config.model_name,
+                                local_files_only=False,
+                                resume_download=True,
+                            )
+                            self._model_cache[model_key] = {"model": model, "processor": processor}
+                            self.logger.info(f"Model loaded successfully with extended timeout in {time.time() - start_time:.2f}s")
+                        except Exception as e2:
+                            self.logger.error(f"Failed to load model even with extended timeout: {e2}")
+                            raise e2
+                    else:
+                        raise e
+        
+        return self._model_cache[model_key]
     
     def transcribe_chunk(self, chunk_array: np.ndarray) -> str:
         """Transcribe audio chunk with optimized parameters."""

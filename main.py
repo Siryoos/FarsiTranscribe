@@ -20,9 +20,9 @@ def create_parser() -> argparse.ArgumentParser:
     
     parser.add_argument("audio_file", help="Audio file path")
     parser.add_argument("--quality", "-q", 
-                       choices=["fast", "balanced", "high", "memory-optimized"], 
+                       choices=["fast", "balanced", "high", "memory-optimized", "95-percent"], 
                        default="memory-optimized",
-                       help="Quality preset")
+                       help="Quality preset (95-percent for maximum quality)")
     parser.add_argument("--model", "-m", 
                        choices=["nezamisafa/whisper-persian-v4", "tiny", "base", "small", "medium", "large"],
                        default="nezamisafa/whisper-persian-v4",
@@ -41,7 +41,8 @@ def get_config(args: argparse.Namespace) -> TranscriptionConfig:
         "fast": ConfigFactory.create_fast_config,
         "balanced": ConfigFactory.create_optimized_config,
         "high": ConfigFactory.create_high_quality_config,
-        "memory-optimized": ConfigFactory.create_memory_optimized_config
+        "memory-optimized": ConfigFactory.create_memory_optimized_config,
+        "95-percent": ConfigFactory.create_95_percent_quality_config
     }
     
     config = config_map[args.quality]()

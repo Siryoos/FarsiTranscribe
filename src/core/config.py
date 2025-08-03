@@ -73,6 +73,20 @@ class TranscriptionConfig:
     enable_facebook_denoiser: bool = False
     enable_persian_optimization: bool = True
     adaptive_processing: bool = True
+    
+    # Enhanced Quality Improvement settings
+    enable_enhanced_preprocessing: bool = True
+    enable_text_postprocessing: bool = True
+    convert_persian_numbers: bool = False  # Keep Persian numbers by default
+    chunk_duration_for_conversations: float = 30.0  # seconds
+    
+    # Advanced 95% Quality Features
+    enable_model_ensemble: bool = True
+    enable_speaker_diarization: bool = True
+    enable_quality_assessment: bool = True
+    enable_auto_tuning: bool = True
+    target_quality_threshold: float = 0.95
+    max_optimization_iterations: int = 3
 
     def __post_init__(self):
         """Validate and optimize configuration after initialization."""
@@ -322,4 +336,28 @@ class ConfigFactory:
             enable_noise_reduction=True,
             enable_voice_activity_detection=True,
             enable_speech_enhancement=True,
+        )
+    
+    @staticmethod
+    def create_95_percent_quality_config() -> TranscriptionConfig:
+        """Create configuration for 95% quality target."""
+        return TranscriptionConfig(
+            model_name="nezamisafa/whisper-persian-v4",
+            language="fa",
+            use_huggingface_model=True,
+            chunk_duration_ms=30000,  # Longer chunks for better context
+            overlap_ms=500,  # More overlap for better continuity
+            num_workers=8,  # More workers for faster processing
+            repetition_threshold=0.9,  # Stricter repetition detection
+            max_word_repetition=1,  # Minimal repetition allowed
+            temperature=0.0,  # Deterministic for consistency
+            condition_on_previous_text=True,
+            enable_enhanced_preprocessing=True,
+            enable_text_postprocessing=True,
+            enable_model_ensemble=True,
+            enable_speaker_diarization=True,
+            enable_quality_assessment=True,
+            enable_auto_tuning=True,
+            target_quality_threshold=0.95,
+            max_optimization_iterations=3
         ) 

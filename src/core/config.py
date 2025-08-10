@@ -123,21 +123,45 @@ class TranscriptionConfig:
     def _optimize_for_device(self):
         """Optimize settings based on available device."""
         if self.device == "cuda" and torch.cuda.is_available():
-            gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
-            if self.model_name.startswith("large"):
-                self.batch_size = max(2, int(gpu_memory // 4))
-            else:
-                self.batch_size = max(4, int(gpu_memory // 2))
-            self.batch_size = min(self.batch_size, 6)
+            try:
+                gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
+                if self.model_name.startswith("large"):
+                    self.batch_size = max(2, int(gpu_memory // 4))
+                else:
+                    self.batch_size = max(4, int(gpu_memory // 2))
+                self.batch_size = min(self.batch_size, 6)
+            except Exception as e:
+                # If CUDA detection fails, fallback to CPU
+                self.device = "cpu"
+                self._apply_cpu_optimizations()
         else:
             self.device = "cpu"
-            # CPU optimizations
-            self.batch_size = 1  # Sequential processing for CPU
-            self.num_workers = min(
-                6, os.cpu_count() or 4
-            )  # Use more CPU cores
-            self.use_parallel_audio_prep = True
-            self.memory_efficient_mode = True
+            self._apply_cpu_optimizations()
+    
+    def _apply_cpu_optimizations(self):
+        """Apply CPU-specific optimizations to use ALL available resources."""
+        # Get total CPU cores
+        total_cores = os.cpu_count() or 4
+        print(f"🚀 CPU Optimization: Using {total_cores} CPU cores")
+        
+        # Optimize for maximum CPU utilization
+        self.batch_size = 1  # Sequential processing for CPU
+        self.num_workers = total_cores  # Use ALL CPU cores
+        self.use_parallel_audio_prep = True
+        self.memory_efficient_mode = True
+        
+        # Optimize chunk size for CPU processing (smaller chunks = more parallel processing)
+        optimal_chunk_size = min(self.chunk_duration_ms, 10000)  # Max 10 seconds for CPU
+        if self.chunk_duration_ms != optimal_chunk_size:
+            print(f"📊 Optimizing chunk size: {self.chunk_duration_ms}ms → {optimal_chunk_size}ms for CPU")
+            self.chunk_duration_ms = optimal_chunk_size
+        
+        # Enable all CPU optimizations
+        self.enable_parallel_audio_prep = True
+        self.chunk_prefetch_count = total_cores * 2  # Prefetch chunks for all workers
+        self.memory_threshold_mb = 2048  # 2GB threshold for CPU mode
+        
+        print(f"⚡ CPU Mode: {total_cores} workers, {optimal_chunk_size}ms chunks, prefetch={self.chunk_prefetch_count}")
 
     @staticmethod
     def _get_optimal_batch_size() -> int:

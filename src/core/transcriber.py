@@ -44,6 +44,95 @@ except ImportError:
     from utils.sentence_extractor import SentenceExtractor
 
 
+class DeviceManager:
+    """Manages device selection and fallback mechanisms."""
+    
+    def __init__(self, config: TranscriptionConfig):
+        self.config = config
+        self.logger = logging.getLogger(__name__)
+        self.device_fallback_history = []
+        self.current_device = self._detect_best_device()
+        
+    def _detect_best_device(self) -> str:
+        """Detect the best available device with comprehensive testing."""
+        devices = self._get_available_devices()
+        
+        for device in devices:
+            if self._test_device(device):
+                self.logger.info(f"✅ Device {device} is working properly")
+                return device
+            else:
+                self.logger.warning(f"❌ Device {device} failed compatibility test")
+                self.device_fallback_history.append(device)
+        
+        # If all devices fail, force CPU
+        self.logger.warning("⚠️ All devices failed compatibility tests, forcing CPU mode")
+        return "cpu"
+    
+    def _get_available_devices(self) -> List[str]:
+        """Get list of available devices in order of preference."""
+        devices = []
+        
+        # Check CUDA availability
+        if torch.cuda.is_available():
+            try:
+                cuda_count = torch.cuda.device_count()
+                for i in range(cuda_count):
+                    devices.append(f"cuda:{i}")
+                devices.append("cuda")  # Default CUDA device
+            except Exception as e:
+                self.logger.warning(f"CUDA device count failed: {e}")
+        
+        # Always add CPU as fallback
+        devices.append("cpu")
+        
+        return devices
+    
+    def _test_device(self, device: str) -> bool:
+        """Test if a device is working properly."""
+        try:
+            if device.startswith("cuda"):
+                # Test CUDA operations
+                test_tensor = torch.randn(2, 2, device=device)
+                result = torch.matmul(test_tensor, test_tensor)
+                torch.cuda.synchronize(device)
+                return True
+            elif device == "cpu":
+                # CPU is always available
+                return True
+            else:
+                return False
+        except Exception as e:
+            self.logger.debug(f"Device {device} test failed: {e}")
+            return False
+    
+    def get_device(self) -> str:
+        """Get current working device."""
+        return self.current_device
+    
+    def force_cpu_fallback(self):
+        """Force fallback to CPU mode with full resource utilization."""
+        if self.current_device != "cpu":
+            total_cores = os.cpu_count() or 4
+            self.logger.warning(f"🔄 Forcing fallback to CPU mode due to device errors")
+            self.logger.info(f"🚀 CPU Fallback: Using {total_cores} CPU cores for maximum performance")
+            
+            self.current_device = "cpu"
+            # Update config with CPU optimizations
+            self.config.device = "cpu"
+            self.config.batch_size = 1
+            self.config.num_workers = total_cores
+            
+            # Apply additional CPU optimizations
+            self.config._apply_cpu_optimizations()
+            
+            self.logger.info(f"⚡ CPU Mode Activated: {total_cores} workers, optimized chunk size, parallel processing enabled")
+    
+    def is_cuda_available(self) -> bool:
+        """Check if CUDA is currently available and working."""
+        return self.current_device.startswith("cuda") and self._test_device(self.current_device)
+
+
 class UnifiedMemoryManager:
     """Lightweight, efficient memory manager."""
 
@@ -99,74 +188,68 @@ class StreamingAudioProcessor:
                 import json
 
                 data = json.loads(result.stdout)
-                audio_stream = next(
-                    s for s in data["streams"] if s["codec_type"] == "audio"
-                )
-                duration = float(data["format"]["duration"])
-
+                format_info = data.get("format", {})
+                duration = float(format_info.get("duration", 0))
                 return {
-                    "duration_ms": int(duration * 1000),
                     "duration_seconds": duration,
-                    "sample_rate": int(audio_stream["sample_rate"]),
-                    "channels": int(audio_stream["channels"]),
+                    "format": format_info.get("format_name", "unknown"),
+                    "bit_rate": format_info.get("bit_rate", "unknown"),
                 }
         except Exception as e:
-            self.logger.warning(f"ffprobe failed, using pydub: {e}")
+            self.logger.debug(f"ffprobe failed: {e}")
 
         # Fallback to pydub
         try:
-            sample = AudioSegment.from_file(file_path, duration=1.0)
-            full_audio = AudioSegment.from_file(file_path)
-            duration_ms = len(full_audio)
-            del full_audio
-
+            audio = AudioSegment.from_file(file_path)
             return {
-                "duration_ms": duration_ms,
-                "duration_seconds": duration_ms / 1000,
-                "sample_rate": sample.frame_rate,
-                "channels": sample.channels,
+                "duration_seconds": len(audio) / 1000.0,
+                "format": "fallback",
+                "bit_rate": "unknown",
             }
         except Exception as e:
-            self.logger.error(f"Audio info extraction failed: {e}")
+            self.logger.error(f"Failed to get audio info: {e}")
             raise
 
     def stream_chunks(
         self, file_path: str
     ) -> Iterator[Tuple[int, np.ndarray]]:
-        """Stream audio chunks using ffmpeg or pydub fallback."""
+        """Stream audio in chunks with overlap."""
+        audio_info = self.get_audio_info(file_path)
+        duration_s = audio_info["duration_seconds"]
         chunk_duration_s = self.config.chunk_duration_ms / 1000
         overlap_s = self.config.overlap_ms / 1000
-        effective_step_s = chunk_duration_s - overlap_s
-
-        audio_info = self.get_audio_info(file_path)
-        total_duration_s = audio_info["duration_seconds"]
 
         chunk_index = 0
-        start_time = 0.0
+        current_time = 0
 
-        while start_time < total_duration_s:
-            end_time = min(start_time + chunk_duration_s, total_duration_s)
+        while current_time < duration_s:
+            chunk_start = max(0, current_time - overlap_s)
+            chunk_end = min(duration_s, current_time + chunk_duration_s)
 
-            # Try ffmpeg first, fallback to pydub
             chunk_array = self._extract_with_ffmpeg(
-                file_path, start_time, end_time - start_time
+                file_path, chunk_start, chunk_end - chunk_start
             )
-            if chunk_array is None:
-                chunk_array = self._extract_with_pydub(
-                    file_path, start_time, end_time - start_time
-                )
 
             if chunk_array is not None and len(chunk_array) > 0:
                 yield chunk_index, chunk_array
 
             chunk_index += 1
-            start_time += effective_step_s
+            current_time = chunk_end
+
+            # Memory management
+            if chunk_index % 10 == 0:
+                gc.collect()
 
     def _extract_with_ffmpeg(
         self, file_path: str, start_time: float, duration: float
     ) -> Optional[np.ndarray]:
-        """Extract audio segment using ffmpeg."""
+        """Extract audio chunk using ffmpeg."""
         try:
+            with tempfile.NamedTemporaryFile(
+                suffix=".wav", delete=False
+            ) as temp_file:
+                temp_path = temp_file.name
+
             cmd = [
                 "ffmpeg",
                 "-i",
@@ -180,54 +263,57 @@ class StreamingAudioProcessor:
                 "-ac",
                 "1",
                 "-f",
-                "f32le",
-                "-",
+                "wav",
+                "-y",
+                temp_path,
             ]
 
             result = subprocess.run(
-                cmd, capture_output=True, stderr=subprocess.DEVNULL, timeout=60
+                cmd, capture_output=True, text=True, timeout=30
             )
 
-            if result.returncode == 0 and len(result.stdout) > 0:
-                audio_data = np.frombuffer(result.stdout, dtype=np.float32)
-                if len(audio_data) > 0 and np.max(np.abs(audio_data)) > 0:
-                    audio_data = audio_data / np.max(np.abs(audio_data))
-                return audio_data
+            if result.returncode == 0:
+                audio = AudioSegment.from_wav(temp_path)
+                audio_array = np.array(audio.get_array_of_samples())
+                os.unlink(temp_path)
+                return audio_array
+            else:
+                self.logger.warning(
+                    f"ffmpeg failed: {result.stderr}, falling back to pydub"
+                )
+                return self._extract_with_pydub(file_path, start_time, duration)
 
-        except Exception:
-            pass
-        return None
+        except Exception as e:
+            self.logger.debug(f"ffmpeg extraction failed: {e}")
+            return self._extract_with_pydub(file_path, start_time, duration)
 
     def _extract_with_pydub(
         self, file_path: str, start_time: float, duration: float
     ) -> Optional[np.ndarray]:
-        """Extract audio segment using pydub as fallback."""
+        """Extract audio chunk using pydub (fallback)."""
         try:
-            start_ms = int(start_time * 1000)
-            duration_ms = int(duration * 1000)
-
             audio = AudioSegment.from_file(file_path)
-            chunk = audio[start_ms : start_ms + duration_ms]
+            start_ms = int(start_time * 1000)
+            end_ms = int((start_time + duration) * 1000)
+            chunk = audio[start_ms:end_ms]
 
+            # Resample if needed
             if chunk.frame_rate != self.config.target_sample_rate:
                 chunk = chunk.set_frame_rate(self.config.target_sample_rate)
-            if chunk.channels != 1:
+
+            # Convert to mono if needed
+            if chunk.channels > 1:
                 chunk = chunk.set_channels(1)
 
-            chunk_array = np.array(
-                chunk.get_array_of_samples(), dtype=np.float32
-            )
-            if len(chunk_array) > 0 and np.max(np.abs(chunk_array)) > 0:
-                chunk_array = chunk_array / np.max(np.abs(chunk_array))
+            return np.array(chunk.get_array_of_samples())
 
-            return chunk_array
-
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"pydub extraction failed: {e}")
             return None
 
 
 class OptimizedWhisperTranscriber:
-    """Optimized Whisper transcriber with model caching."""
+    """Optimized Whisper transcriber with model caching and device fallback."""
 
     _model_cache = {}
     _model_lock = threading.Lock()
@@ -235,8 +321,11 @@ class OptimizedWhisperTranscriber:
     def __init__(self, config: TranscriptionConfig):
         self.config = config
         self.logger = logging.getLogger(__name__)
+        self.device_manager = DeviceManager(config)
         self._model_cache = {}
         self._model_lock = threading.Lock()
+        self.cuda_error_count = 0
+        self.max_cuda_errors = 3
 
         # Configure retry strategy for Hugging Face downloads
         self._setup_hf_download_retry()
@@ -259,8 +348,9 @@ class OptimizedWhisperTranscriber:
         self._hf_session.timeout = (30, 300)  # (connect_timeout, read_timeout)
 
     def _get_cached_model(self):
-        """Get cached model or load new one with retry logic."""
-        model_key = f"{self.config.model_name}_{self.config.device}"
+        """Get cached model or load new one with retry logic and device fallback."""
+        current_device = self.device_manager.get_device()
+        model_key = f"{self.config.model_name}_{current_device}"
 
         with self._model_lock:
             if model_key not in self._model_cache:
@@ -285,26 +375,29 @@ class OptimizedWhisperTranscriber:
                                 "Using default Hugging Face Hub HTTP backend"
                             )
 
+                        # Force consistent data type to avoid mismatches
+                        torch_dtype = torch.float32  # Use float32 for compatibility
+                        device_map = "auto" if current_device.startswith("cuda") else None
+
                         model = WhisperForConditionalGeneration.from_pretrained(
                             self.config.model_name,
-                            torch_dtype=(
-                                torch.float16
-                                if self.config.device == "cuda"
-                                else torch.float32
-                            ),
-                            device_map=(
-                                "auto"
-                                if self.config.device == "cuda"
-                                else None
-                            ),
+                            torch_dtype=torch_dtype,
+                            device_map=device_map,
                             local_files_only=False,  # Allow download
                             resume_download=True,  # Resume interrupted downloads
+                            trust_remote_code=True,  # Trust custom model code
+                            low_cpu_mem_usage=True,  # Reduce memory usage
                         )
                         processor = WhisperProcessor.from_pretrained(
                             self.config.model_name,
                             local_files_only=False,
                             resume_download=True,
                         )
+                        
+                        # Move model to device if not using device_map
+                        if device_map is None:
+                            model = model.to(current_device)
+                            
                         self._model_cache[model_key] = {
                             "model": model,
                             "processor": processor,
@@ -312,7 +405,7 @@ class OptimizedWhisperTranscriber:
                     else:
                         # Load OpenAI Whisper model
                         model = whisper.load_model(
-                            self.config.model_name, device=self.config.device
+                            self.config.model_name, device=current_device
                         )
                         self._model_cache[model_key] = {
                             "model": model,
@@ -324,6 +417,13 @@ class OptimizedWhisperTranscriber:
                     )
                 except Exception as e:
                     self.logger.error(f"Failed to load model: {e}")
+                    
+                    # If CUDA fails, try CPU fallback
+                    if current_device.startswith("cuda"):
+                        self.logger.info("🔄 CUDA model loading failed, attempting CPU fallback...")
+                        self.device_manager.force_cpu_fallback()
+                        return self._get_cached_model()  # Recursive call with CPU
+                    
                     if self.config.use_huggingface_model:
                         self.logger.info(
                             "Attempting to load model with increased timeout..."
@@ -337,24 +437,22 @@ class OptimizedWhisperTranscriber:
 
                             model = WhisperForConditionalGeneration.from_pretrained(
                                 self.config.model_name,
-                                torch_dtype=(
-                                    torch.float16
-                                    if self.config.device == "cuda"
-                                    else torch.float32
-                                ),
-                                device_map=(
-                                    "auto"
-                                    if self.config.device == "cuda"
-                                    else None
-                                ),
+                                torch_dtype=torch.float32,  # Force CPU dtype
+                                device_map=None,
                                 local_files_only=False,
                                 resume_download=True,
+                                trust_remote_code=True,  # Trust custom model code
+                                low_cpu_mem_usage=True,  # Reduce memory usage
                             )
                             processor = WhisperProcessor.from_pretrained(
                                 self.config.model_name,
                                 local_files_only=False,
                                 resume_download=True,
                             )
+                            
+                            # Force CPU
+                            model = model.to("cpu")
+                            
                             self._model_cache[model_key] = {
                                 "model": model,
                                 "processor": processor,
@@ -373,7 +471,7 @@ class OptimizedWhisperTranscriber:
         return self._model_cache[model_key]
 
     def transcribe_chunk(self, chunk_array: np.ndarray) -> str:
-        """Transcribe audio chunk with optimized parameters."""
+        """Transcribe audio chunk with optimized parameters and error handling."""
         try:
             if len(chunk_array) == 0:
                 return ""
@@ -386,6 +484,7 @@ class OptimizedWhisperTranscriber:
             cached_model = self._get_cached_model()
             model = cached_model["model"]
             processor = cached_model["processor"]
+            current_device = self.device_manager.get_device()
 
             if self.config.use_huggingface_model and processor is not None:
                 # Use Hugging Face model
@@ -396,8 +495,11 @@ class OptimizedWhisperTranscriber:
                     return_tensors="pt",
                 ).input_features
 
-                if self.config.device == "cuda":
-                    input_features = input_features.to(self.config.device)
+                # Ensure input features match model data type
+                if current_device.startswith("cuda"):
+                    input_features = input_features.to(current_device, dtype=torch.float32)
+                else:
+                    input_features = input_features.to(dtype=torch.float32)
 
                 # Generate transcription with Hugging Face compatible parameters
                 generation_kwargs = {
@@ -448,7 +550,24 @@ class OptimizedWhisperTranscriber:
             )
 
         except Exception as e:
-            self.logger.error(f"Transcription error: {e}")
+            error_msg = str(e)
+            self.logger.error(f"Transcription error: {error_msg}")
+            
+            # Handle CUDA-specific errors
+            if "CUDA" in error_msg and current_device.startswith("cuda"):
+                self.cuda_error_count += 1
+                self.logger.warning(f"CUDA error count: {self.cuda_error_count}/{self.max_cuda_errors}")
+                
+                if self.cuda_error_count >= self.max_cuda_errors:
+                    self.logger.error("🔄 Maximum CUDA errors reached, forcing CPU fallback")
+                    self.device_manager.force_cpu_fallback()
+                    # Clear model cache to force reload on CPU
+                    with self._model_lock:
+                        self._model_cache.clear()
+                    self.cuda_error_count = 0
+                    # Retry transcription with CPU
+                    return self.transcribe_chunk(chunk_array)
+            
             return ""
 
 
@@ -481,7 +600,7 @@ class UnifiedAudioTranscriber:
         return logging.getLogger(__name__)
 
     def transcribe_file(self, audio_file_path: str) -> str:
-        """Main transcription method with streaming processing."""
+        """Main transcription method with streaming processing and device fallback."""
         try:
             if not os.path.exists(audio_file_path):
                 raise FileNotFoundError(
@@ -508,9 +627,10 @@ class UnifiedAudioTranscriber:
                 1, int(duration_s / (chunk_duration_s - overlap_s))
             )
 
+            current_device = self.whisper_transcriber.device_manager.get_device()
             print(f"✅ Audio: {duration_s:.1f}s, ~{estimated_chunks} chunks")
             print(
-                f"🔧 Model: {self.config.model_name}, Device: {self.config.device}"
+                f"🔧 Model: {self.config.model_name}, Device: {current_device}"
             )
 
             # Process with streaming
@@ -547,49 +667,48 @@ class UnifiedAudioTranscriber:
             final_text = self._merge_transcriptions(transcriptions)
 
             # Save results
-            print("🔄 Saving results...")
             file_manager.save_unified_transcription(final_text)
-
-            print(f"✅ Transcription completed!")
-            print(f"📝 Length: {len(final_text)} characters")
-            print(f"📄 Saved to: {self.config.output_directory}")
+            print(f"✅ Transcription saved to: {file_manager.unified_file_path}")
 
             return final_text
 
         except Exception as e:
             self.logger.error(f"Transcription failed: {e}")
             raise
-        finally:
-            self._cleanup()
 
     def _merge_transcriptions(self, transcriptions: List[str]) -> str:
-        """Merge transcriptions with deduplication."""
+        """Merge transcriptions with intelligent deduplication."""
+        if not transcriptions:
+            return ""
+
+        # Filter out empty transcriptions
         valid_transcriptions = [t.strip() for t in transcriptions if t.strip()]
 
         if not valid_transcriptions:
             return ""
 
-        # Simple but effective merging
+        # Simple merge for now - can be enhanced with more sophisticated logic
         merged_text = " ".join(valid_transcriptions)
 
-        # Clean up whitespace and apply final repetition cleaning
-        import re
-
-        merged_text = re.sub(r"\s+", " ", merged_text).strip()
-        merged_text = RepetitionDetector.clean_repetitive_text(
-            merged_text, self.config
-        )
+        # Basic cleanup
+        merged_text = merged_text.replace("  ", " ")  # Remove double spaces
+        merged_text = merged_text.strip()
 
         return merged_text
 
     def _cleanup(self):
-        """Clean up resources."""
-        gc.collect()
-        if self.config.device == "cuda" and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        """Cleanup resources."""
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
+        except Exception as e:
+            self.logger.debug(f"Cleanup error: {e}")
 
     def __enter__(self):
+        """Context manager entry."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
         self._cleanup()

@@ -49,6 +49,11 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable transcription preview",
     )
+    parser.add_argument(
+        "--force-cpu",
+        action="store_true",
+        help="Force CPU mode (useful when CUDA has compatibility issues)",
+    )
 
     return parser
 
@@ -82,6 +87,9 @@ def get_config(args: argparse.Namespace) -> TranscriptionConfig:
         config.output_directory = args.output_dir
     if args.no_preview:
         config.enable_sentence_preview = False
+    if args.force_cpu:
+        config.device = "cpu"
+        config._apply_cpu_optimizations()
 
     return config
 

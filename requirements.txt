@@ -29,3 +29,16 @@ hazm>=0.7.0
 
 # Advanced Quality Features
 scikit-learn>=1.0.0
+
+# Fine-tuning specific dependencies
+datasets>=2.14.0
+accelerate>=0.20.0
+peft>=0.4.0
+bitsandbytes>=0.41.0
+wandb>=0.15.0
+tensorboard>=2.13.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+evaluate>=0.4.0
+rouge-score>=0.1.2
+sacrebleu>=0.1.0

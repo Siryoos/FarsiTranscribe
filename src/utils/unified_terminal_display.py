@@ -7,9 +7,12 @@ Provides comprehensive terminal output with RTL support and Persian text handlin
 import os
 import sys
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from dataclasses import dataclass
 from enum import Enum
+
+if TYPE_CHECKING:
+    from rich.table import Table
 
 # Optional imports with fallbacks
 try:
@@ -414,7 +417,7 @@ class UnifiedTerminalDisplay:
 
     def format_transcription_table(
         self, transcriptions: List[str]
-    ) -> Optional[Table]:
+    ) -> Optional["Table"]:
         """Format transcriptions as a table."""
         if not RICH_AVAILABLE or not self.console:
             return None

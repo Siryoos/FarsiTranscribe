@@ -9,7 +9,7 @@ from .dataset_builder import WhisperDatasetBuilder
 
 __all__ = [
     "AudioDataPreprocessor",
-    "PersianTextNormalizer", 
+    "PersianTextNormalizer",
     "AudioAugmenter",
-    "WhisperDatasetBuilder"
+    "WhisperDatasetBuilder",
 ]

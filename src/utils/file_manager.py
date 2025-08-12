@@ -41,7 +41,8 @@ class TranscriptionFileManager:
         )
         # Speaker-diarized outputs
         self.speaker_file_path = (
-            self.output_directory / f"{base_filename}_speaker_transcription.txt"
+            self.output_directory
+            / f"{base_filename}_speaker_transcription.txt"
         )
         self.speaker_segments_json_path = (
             self.output_directory / f"{base_filename}_speaker_segments.json"
@@ -99,7 +100,9 @@ class TranscriptionFileManager:
         except Exception as e:
             self.logger.error(f"Failed to save metadata: {e}")
 
-    def save_speaker_transcription(self, segments: List[Dict[str, Any]]) -> bool:
+    def save_speaker_transcription(
+        self, segments: List[Dict[str, Any]]
+    ) -> bool:
         """Save speaker-labeled transcription and segment metadata.
 
         Expected segment dict keys: speaker_id, start_time, end_time, text, confidence (optional)
@@ -114,7 +117,9 @@ class TranscriptionFileManager:
                 text = (seg.get("text") or "").strip()
                 if not text:
                     continue
-                lines.append(f"[Speaker {speaker_id}] ({start:.2f}-{end:.2f}): {text}")
+                lines.append(
+                    f"[Speaker {speaker_id}] ({start:.2f}-{end:.2f}): {text}"
+                )
 
             labeled_text = "\n".join(lines)
 
@@ -125,7 +130,9 @@ class TranscriptionFileManager:
             # Save raw segments as JSON
             import json
 
-            with open(self.speaker_segments_json_path, "w", encoding="utf-8") as jf:
+            with open(
+                self.speaker_segments_json_path, "w", encoding="utf-8"
+            ) as jf:
                 json.dump(segments, jf, indent=2, ensure_ascii=False)
 
             return True

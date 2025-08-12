@@ -4,6 +4,7 @@ Fine-tuning script for Whisper on Persian/Farsi datasets.
 Supports full fine-tuning or parameter-efficient fine-tuning (LoRA) using PEFT.
 Minimal defaults chosen for stability; override via CLI.
 """
+
 from __future__ import annotations
 
 import os
@@ -23,6 +24,7 @@ from transformers import (
 
 try:
     from peft import LoraConfig, get_peft_model, TaskType
+
     PEFT_AVAILABLE = True
 except Exception:
     PEFT_AVAILABLE = False
@@ -67,15 +69,24 @@ def prepare_datasets(
         raise ValueError("Unsupported data format. Use csv, tsv, or jsonl.")
 
 
-def add_special_tokens(processor: WhisperProcessor, lang: str, task: str) -> None:
+def add_special_tokens(
+    processor: WhisperProcessor, lang: str, task: str
+) -> None:
     processor.tokenizer.set_prefix_tokens(language=lang, task=task)
 
 
-def preprocess_batch(batch, processor: WhisperProcessor, cfg: TrainConfig, dp_cfg: DataPrepConfig):
+def preprocess_batch(
+    batch,
+    processor: WhisperProcessor,
+    cfg: TrainConfig,
+    dp_cfg: DataPrepConfig,
+):
     audio = batch[dp_cfg.path_column]
     text = batch[dp_cfg.text_column]
     inputs = processor(
-        audio["array"], sampling_rate=audio["sampling_rate"], return_tensors="pt"
+        audio["array"],
+        sampling_rate=audio["sampling_rate"],
+        return_tensors="pt",
     )
     with processor.as_target_processor():
         labels = processor(text, return_tensors="pt").input_ids
@@ -113,12 +124,20 @@ def build_model_and_processor(cfg: TrainConfig):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fine-tune Whisper for Persian/Farsi")
-    parser.add_argument("data_path", help="Path to dataset file (csv/tsv/jsonl)")
-    parser.add_argument("--data-format", choices=["csv", "tsv", "jsonl"], default="csv")
+    parser = argparse.ArgumentParser(
+        description="Fine-tune Whisper for Persian/Farsi"
+    )
+    parser.add_argument(
+        "data_path", help="Path to dataset file (csv/tsv/jsonl)"
+    )
+    parser.add_argument(
+        "--data-format", choices=["csv", "tsv", "jsonl"], default="csv"
+    )
     parser.add_argument("--model", default="openai/whisper-small")
     parser.add_argument("--language", default="fa")
-    parser.add_argument("--task", default="transcribe", choices=["transcribe", "translate"])
+    parser.add_argument(
+        "--task", default="transcribe", choices=["transcribe", "translate"]
+    )
     parser.add_argument("--output-dir", default="./checkpoints")
     parser.add_argument("--max-steps", type=int, default=2000)
     parser.add_argument("--batch-size", type=int, default=8)
@@ -161,7 +180,11 @@ def main():
     for split in dsd.keys():
         processed[split] = dsd[split].map(
             _map_fn,
-            remove_columns=[c for c in dsd[split].column_names if c not in (dp_cfg.text_column, dp_cfg.path_column)],
+            remove_columns=[
+                c
+                for c in dsd[split].column_names
+                if c not in (dp_cfg.text_column, dp_cfg.path_column)
+            ],
             batched=False,
         )
 
@@ -203,5 +226,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

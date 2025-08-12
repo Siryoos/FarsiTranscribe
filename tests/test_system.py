@@ -37,7 +37,9 @@ def test_unicode_support():
     try:
         # Prefer unified display; keep fallback for legacy
         try:
-            from src.utils.unified_terminal_display import create_preview_display
+            from src.utils.unified_terminal_display import (
+                create_preview_display,
+            )
             from src.utils import UnifiedTerminalDisplay as terminal_display
         except Exception:
             from src.utils.terminal_display import terminal_display
@@ -50,11 +52,15 @@ def test_unicode_support():
         if hasattr(terminal_display, "print_persian_preview"):
             terminal_display.print_persian_preview(persian_text, 1)
         else:
-            display = create_preview_display(total_chunks=1, estimated_duration=1)
+            display = create_preview_display(
+                total_chunks=1, estimated_duration=1
+            )
             display.print_persian_preview(persian_text, 1)
 
         # Test Unicode support check
-        check_support = getattr(terminal_display, "check_unicode_support", None)
+        check_support = getattr(
+            terminal_display, "check_unicode_support", None
+        )
         if callable(check_support) and check_support():
             print("✅ Unicode support is working properly")
             assert True

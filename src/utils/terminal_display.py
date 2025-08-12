@@ -20,18 +20,26 @@ class _TerminalDisplayShim:
     def _ensure_display(self):
         if self._display is None and create_preview_display is not None:
             # Create a simple display with 1 chunk and trivial duration
-            self._display = create_preview_display(total_chunks=1, estimated_duration=1.0)
+            self._display = create_preview_display(
+                total_chunks=1, estimated_duration=1.0
+            )
 
-    def print_persian_preview(self, text: str, part_number: Optional[int] = None):
+    def print_persian_preview(
+        self, text: str, part_number: Optional[int] = None
+    ):
         self._ensure_display()
-        if self._display is not None and hasattr(self._display, "print_persian_preview"):
+        if self._display is not None and hasattr(
+            self._display, "print_persian_preview"
+        ):
             return self._display.print_persian_preview(text, part_number or 1)
         # Graceful fallback
         print(f"Part {part_number or 1} Preview: {text}")
 
     def print_simple_preview(self, text: str, label: str = ""):
         self._ensure_display()
-        if self._display is not None and hasattr(self._display, "print_simple_preview"):
+        if self._display is not None and hasattr(
+            self._display, "print_simple_preview"
+        ):
             return self._display.print_simple_preview(text, label)
         # Graceful fallback
         prefix = f"{label}: " if label else ""
@@ -45,5 +53,3 @@ class _TerminalDisplayShim:
 terminal_display = _TerminalDisplayShim()
 
 __all__ = ["terminal_display"]
-
-

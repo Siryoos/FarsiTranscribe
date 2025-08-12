@@ -37,7 +37,9 @@ class SpeakerDiarizer:
     def __init__(self, config: TranscriptionConfig):
         self.config = config
         self.logger = logging.getLogger(__name__)
-        self.min_speaker_duration = 0.5  # Reduced from 2.0s to 0.5s for better detection
+        self.min_speaker_duration = (
+            0.5  # Reduced from 2.0s to 0.5s for better detection
+        )
         self.max_speakers = 8  # Maximum number of speakers to detect
 
     def diarize_audio(
@@ -137,7 +139,9 @@ class SpeakerDiarizer:
         energy = (energy - np.mean(energy)) / np.std(energy)
 
         # Threshold for speech detection - more sensitive
-        threshold = np.percentile(energy, 40)  # Reduced from 70 to 40 for more sensitive detection
+        threshold = np.percentile(
+            energy, 40
+        )  # Reduced from 70 to 40 for more sensitive detection
         speech_frames = energy > threshold
 
         # Find speech segments
@@ -318,7 +322,9 @@ class SpeakerDiarizer:
                     # Check if segments are close enough to merge
                     time_gap = segment.start_time - current_segment.end_time
 
-                    if time_gap < 3.0:  # Increased gap tolerance from 1.0s to 3.0s
+                    if (
+                        time_gap < 3.0
+                    ):  # Increased gap tolerance from 1.0s to 3.0s
                         # Merge audio data
                         gap_samples = int(
                             time_gap * self.config.target_sample_rate

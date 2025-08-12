@@ -33,15 +33,17 @@ try:
     from ..utils.file_manager import TranscriptionFileManager
     from ..utils.repetition_detector import RepetitionDetector
     from ..utils.sentence_extractor import SentenceExtractor
-    
+
     # Try to import pyannote diarizer first
     try:
         from ..utils.pyannote_diarizer import PyannoteDiarizer, SpeakerSegment
+
         PYAANOTE_AVAILABLE = True
     except ImportError:
         from ..utils.speaker_diarization import SpeakerDiarizer, SpeakerSegment
+
         PYAANOTE_AVAILABLE = False
-        
+
 except ImportError:
     # Fallback for direct execution
     import sys
@@ -56,33 +58,37 @@ except ImportError:
 
 class DeviceManager:
     """Manages device selection and fallback mechanisms."""
-    
+
     def __init__(self, config: TranscriptionConfig):
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.device_fallback_history = []
         self.current_device = self._detect_best_device()
-        
+
     def _detect_best_device(self) -> str:
         """Detect the best available device with comprehensive testing."""
         devices = self._get_available_devices()
-        
+
         for device in devices:
             if self._test_device(device):
                 self.logger.info(f"✅ Device {device} is working properly")
                 return device
             else:
-                self.logger.warning(f"❌ Device {device} failed compatibility test")
+                self.logger.warning(
+                    f"❌ Device {device} failed compatibility test"
+                )
                 self.device_fallback_history.append(device)
-        
+
         # If all devices fail, force CPU
-        self.logger.warning("⚠️ All devices failed compatibility tests, forcing CPU mode")
+        self.logger.warning(
+            "⚠️ All devices failed compatibility tests, forcing CPU mode"
+        )
         return "cpu"
-    
+
     def _get_available_devices(self) -> List[str]:
         """Get list of available devices in order of preference."""
         devices = []
-        
+
         # Check CUDA availability
         if torch.cuda.is_available():
             try:
@@ -92,12 +98,12 @@ class DeviceManager:
                 devices.append("cuda")  # Default CUDA device
             except Exception as e:
                 self.logger.warning(f"CUDA device count failed: {e}")
-        
+
         # Always add CPU as fallback
         devices.append("cpu")
-        
+
         return devices
-    
+
     def _test_device(self, device: str) -> bool:
         """Test if a device is working properly."""
         try:
@@ -115,32 +121,40 @@ class DeviceManager:
         except Exception as e:
             self.logger.debug(f"Device {device} test failed: {e}")
             return False
-    
+
     def get_device(self) -> str:
         """Get current working device."""
         return self.current_device
-    
+
     def force_cpu_fallback(self):
         """Force fallback to CPU mode with full resource utilization."""
         if self.current_device != "cpu":
             total_cores = os.cpu_count() or 4
-            self.logger.warning(f"🔄 Forcing fallback to CPU mode due to device errors")
-            self.logger.info(f"🚀 CPU Fallback: Using {total_cores} CPU cores for maximum performance")
-            
+            self.logger.warning(
+                f"🔄 Forcing fallback to CPU mode due to device errors"
+            )
+            self.logger.info(
+                f"🚀 CPU Fallback: Using {total_cores} CPU cores for maximum performance"
+            )
+
             self.current_device = "cpu"
             # Update config with CPU optimizations
             self.config.device = "cpu"
             self.config.batch_size = 1
             self.config.num_workers = total_cores
-            
+
             # Apply additional CPU optimizations
             self.config._apply_cpu_optimizations()
-            
-            self.logger.info(f"⚡ CPU Mode Activated: {total_cores} workers, optimized chunk size, parallel processing enabled")
-    
+
+            self.logger.info(
+                f"⚡ CPU Mode Activated: {total_cores} workers, optimized chunk size, parallel processing enabled"
+            )
+
     def is_cuda_available(self) -> bool:
         """Check if CUDA is currently available and working."""
-        return self.current_device.startswith("cuda") and self._test_device(self.current_device)
+        return self.current_device.startswith("cuda") and self._test_device(
+            self.current_device
+        )
 
 
 class UnifiedMemoryManager:
@@ -291,7 +305,9 @@ class StreamingAudioProcessor:
                 self.logger.warning(
                     f"ffmpeg failed: {result.stderr}, falling back to pydub"
                 )
-                return self._extract_with_pydub(file_path, start_time, duration)
+                return self._extract_with_pydub(
+                    file_path, start_time, duration
+                )
 
         except Exception as e:
             self.logger.debug(f"ffmpeg extraction failed: {e}")
@@ -324,7 +340,7 @@ class StreamingAudioProcessor:
                 samples = samples / 32768.0
             elif chunk.sample_width == 4:  # 32-bit
                 samples = samples / 2147483648.0
-            
+
             return samples
 
         except Exception as e:
@@ -396,8 +412,14 @@ class OptimizedWhisperTranscriber:
                             )
 
                         # Force consistent data type to avoid mismatches
-                        torch_dtype = torch.float32  # Use float32 for compatibility
-                        device_map = "auto" if current_device.startswith("cuda") else None
+                        torch_dtype = (
+                            torch.float32
+                        )  # Use float32 for compatibility
+                        device_map = (
+                            "auto"
+                            if current_device.startswith("cuda")
+                            else None
+                        )
 
                         model = WhisperForConditionalGeneration.from_pretrained(
                             self.config.model_name,
@@ -413,11 +435,11 @@ class OptimizedWhisperTranscriber:
                             local_files_only=False,
                             resume_download=True,
                         )
-                        
+
                         # Move model to device if not using device_map
                         if device_map is None:
                             model = model.to(current_device)
-                            
+
                         self._model_cache[model_key] = {
                             "model": model,
                             "processor": processor,
@@ -437,13 +459,17 @@ class OptimizedWhisperTranscriber:
                     )
                 except Exception as e:
                     self.logger.error(f"Failed to load model: {e}")
-                    
+
                     # If CUDA fails, try CPU fallback
                     if current_device.startswith("cuda"):
-                        self.logger.info("🔄 CUDA model loading failed, attempting CPU fallback...")
+                        self.logger.info(
+                            "🔄 CUDA model loading failed, attempting CPU fallback..."
+                        )
                         self.device_manager.force_cpu_fallback()
-                        return self._get_cached_model()  # Recursive call with CPU
-                    
+                        return (
+                            self._get_cached_model()
+                        )  # Recursive call with CPU
+
                     if self.config.use_huggingface_model:
                         self.logger.info(
                             "Attempting to load model with increased timeout..."
@@ -469,10 +495,10 @@ class OptimizedWhisperTranscriber:
                                 local_files_only=False,
                                 resume_download=True,
                             )
-                            
+
                             # Force CPU
                             model = model.to("cpu")
-                            
+
                             self._model_cache[model_key] = {
                                 "model": model,
                                 "processor": processor,
@@ -517,7 +543,9 @@ class OptimizedWhisperTranscriber:
 
                 # Ensure input features match model data type
                 if current_device.startswith("cuda"):
-                    input_features = input_features.to(current_device, dtype=torch.float32)
+                    input_features = input_features.to(
+                        current_device, dtype=torch.float32
+                    )
                 else:
                     input_features = input_features.to(dtype=torch.float32)
 
@@ -572,14 +600,18 @@ class OptimizedWhisperTranscriber:
         except Exception as e:
             error_msg = str(e)
             self.logger.error(f"Transcription error: {error_msg}")
-            
+
             # Handle CUDA-specific errors
             if "CUDA" in error_msg and current_device.startswith("cuda"):
                 self.cuda_error_count += 1
-                self.logger.warning(f"CUDA error count: {self.cuda_error_count}/{self.max_cuda_errors}")
-                
+                self.logger.warning(
+                    f"CUDA error count: {self.cuda_error_count}/{self.max_cuda_errors}"
+                )
+
                 if self.cuda_error_count >= self.max_cuda_errors:
-                    self.logger.error("🔄 Maximum CUDA errors reached, forcing CPU fallback")
+                    self.logger.error(
+                        "🔄 Maximum CUDA errors reached, forcing CPU fallback"
+                    )
                     self.device_manager.force_cpu_fallback()
                     # Clear model cache to force reload on CPU
                     with self._model_lock:
@@ -587,7 +619,7 @@ class OptimizedWhisperTranscriber:
                     self.cuda_error_count = 0
                     # Retry transcription with CPU
                     return self.transcribe_chunk(chunk_array)
-            
+
             return ""
 
 
@@ -648,7 +680,9 @@ class UnifiedAudioTranscriber:
                 1, int(duration_s / (chunk_duration_s - overlap_s))
             )
 
-            current_device = self.whisper_transcriber.device_manager.get_device()
+            current_device = (
+                self.whisper_transcriber.device_manager.get_device()
+            )
             print(f"✅ Audio: {duration_s:.1f}s, ~{estimated_chunks} chunks")
             print(
                 f"🔧 Model: {self.config.model_name}, Device: {current_device}"
@@ -666,17 +700,23 @@ class UnifiedAudioTranscriber:
                         # Use pyannote if available, otherwise fallback to basic diarizer
                         if PYAANOTE_AVAILABLE:
                             diarizer = PyannoteDiarizer(self.config)
-                            self.logger.info("Using pyannote.audio for speaker diarization")
+                            self.logger.info(
+                                "Using pyannote.audio for speaker diarization"
+                            )
                         else:
                             diarizer = SpeakerDiarizer(self.config)
-                            self.logger.info("Using basic MFCC diarizer (pyannote not available)")
-                        
+                            self.logger.info(
+                                "Using basic MFCC diarizer (pyannote not available)"
+                            )
+
                         # Get diarization parameters
-                        diarization_params = getattr(self.config, "diarization_params", {})
+                        diarization_params = getattr(
+                            self.config, "diarization_params", {}
+                        )
                         num_speakers = diarization_params.get("num_speakers")
                         min_speakers = diarization_params.get("min_speakers")
                         max_speakers = diarization_params.get("max_speakers")
-                        
+
                         diarized_segments = diarizer.diarize_audio(
                             full_audio,
                             self.config.target_sample_rate,
@@ -687,22 +727,37 @@ class UnifiedAudioTranscriber:
 
                         # Merge adjacent segments by the same speaker
                         try:
-                            diarized_segments = diarizer.merge_similar_speakers(diarized_segments)
+                            diarized_segments = (
+                                diarizer.merge_similar_speakers(
+                                    diarized_segments
+                                )
+                            )
                         except Exception:
                             pass
-                        
+
                         # Check if diarization found enough segments
-                        total_diarized_time = sum(seg.end_time - seg.start_time for seg in diarized_segments)
-                        coverage_percentage = (total_diarized_time / duration_s) * 100
-                        
-                        if coverage_percentage < 20:  # If less than 20% coverage, fallback to standard
-                            self.logger.warning(f"Diarization only covered {coverage_percentage:.1f}% of audio, using standard transcription")
+                        total_diarized_time = sum(
+                            seg.end_time - seg.start_time
+                            for seg in diarized_segments
+                        )
+                        coverage_percentage = (
+                            total_diarized_time / duration_s
+                        ) * 100
+
+                        if (
+                            coverage_percentage < 20
+                        ):  # If less than 20% coverage, fallback to standard
+                            self.logger.warning(
+                                f"Diarization only covered {coverage_percentage:.1f}% of audio, using standard transcription"
+                            )
                             diarized_segments_output = []
                         else:
                             # Build per-speaker transcription
                             for idx, seg in enumerate(diarized_segments):
-                                text = self.whisper_transcriber.transcribe_chunk(
-                                    seg.audio_data
+                                text = (
+                                    self.whisper_transcriber.transcribe_chunk(
+                                        seg.audio_data
+                                    )
                                 )
                                 diarized_segments_output.append(
                                     {
@@ -713,10 +768,12 @@ class UnifiedAudioTranscriber:
                                         "text": text,
                                     }
                                 )
-                            
+
                             if diarized_segments_output:
                                 # Build unified text from diarized segments (ordered)
-                                diarized_segments_output.sort(key=lambda s: s.get("start_time", 0.0))
+                                diarized_segments_output.sort(
+                                    key=lambda s: s.get("start_time", 0.0)
+                                )
                                 final_text = "\n".join(
                                     [
                                         f"[Speaker {s['speaker_id']}] ({s['start_time']:.2f}-{s['end_time']:.2f}): {s['text']}".strip()
@@ -726,13 +783,17 @@ class UnifiedAudioTranscriber:
                                 )
 
                                 # Save unified diarized and per-segment outputs
-                                file_manager.save_unified_transcription(final_text)
-                                file_manager.save_speaker_transcription(diarized_segments_output)
+                                file_manager.save_unified_transcription(
+                                    final_text
+                                )
+                                file_manager.save_speaker_transcription(
+                                    diarized_segments_output
+                                )
                                 print(
                                     f"✅ Diarized transcription saved to: {file_manager.speaker_file_path}"
                                 )
                                 return final_text
-                            
+
                 except Exception as e:
                     self.logger.warning(
                         f"Speaker diarization failed, continuing without diarization: {e}"
@@ -740,22 +801,27 @@ class UnifiedAudioTranscriber:
 
             # Fallback: standard chunked streaming transcription
             print("🔄 Using standard chunked transcription...")
-            
+
             # Initialize enhanced preview display if enabled
             if self.config.enable_sentence_preview:
                 try:
-                    from ..utils.unified_terminal_display import create_preview_display
+                    from ..utils.unified_terminal_display import (
+                        create_preview_display,
+                    )
+
                     self.preview_display = create_preview_display(
-                        estimated_chunks, 
-                        estimated_duration=self.audio_duration
+                        estimated_chunks,
+                        estimated_duration=self.audio_duration,
                     )
                     print("✨ Enhanced preview display enabled")
                 except ImportError:
                     self.preview_display = None
-                    print("⚠️  Enhanced preview not available, using basic preview")
+                    print(
+                        "⚠️  Enhanced preview not available, using basic preview"
+                    )
             else:
                 self.preview_display = None
-            
+
             transcriptions = []
             with tqdm(
                 total=estimated_chunks, desc="🎙️ Transcribing", unit="chunk"
@@ -767,24 +833,29 @@ class UnifiedAudioTranscriber:
                     # Track chunk in preview display
                     if self.preview_display:
                         # Estimate timing based on chunk index
-                        total_duration = getattr(self, 'audio_duration', 0)
-                        chunk_start = (chunk_index / estimated_chunks) * total_duration
-                        chunk_end = ((chunk_index + 1) / estimated_chunks) * total_duration
+                        total_duration = getattr(self, "audio_duration", 0)
+                        chunk_start = (
+                            chunk_index / estimated_chunks
+                        ) * total_duration
+                        chunk_end = (
+                            (chunk_index + 1) / estimated_chunks
+                        ) * total_duration
                         chunk_duration = chunk_end - chunk_start
-                        
+
                         self.preview_display.add_chunk(
-                            chunk_index, 
-                            chunk_start, 
-                            chunk_end, 
-                            chunk_duration
+                            chunk_index, chunk_start, chunk_end, chunk_duration
                         )
                         self.preview_display.set_current_chunk(chunk_index)
-                        self.preview_display.update_chunk_progress(chunk_index, 0.0)
-                    
+                        self.preview_display.update_chunk_progress(
+                            chunk_index, 0.0
+                        )
+
                     # Update progress to show transcription in progress
                     if self.preview_display:
-                        self.preview_display.update_chunk_progress(chunk_index, 50.0)
-                    
+                        self.preview_display.update_chunk_progress(
+                            chunk_index, 50.0
+                        )
+
                     transcription = self.whisper_transcriber.transcribe_chunk(
                         chunk_array
                     )
@@ -796,7 +867,7 @@ class UnifiedAudioTranscriber:
                         and transcription.strip()
                     ):
                         # Use enhanced preview display if available
-                        if hasattr(self, 'preview_display'):
+                        if hasattr(self, "preview_display"):
                             self.preview_display.update_chunk_progress(
                                 chunk_index, 100.0, transcription.strip()
                             )
@@ -818,7 +889,9 @@ class UnifiedAudioTranscriber:
 
             # Save results
             file_manager.save_unified_transcription(final_text)
-            print(f"✅ Transcription saved to: {file_manager.unified_file_path}")
+            print(
+                f"✅ Transcription saved to: {file_manager.unified_file_path}"
+            )
 
             return final_text
 
@@ -850,9 +923,9 @@ class UnifiedAudioTranscriber:
         """Cleanup resources."""
         try:
             # Cleanup preview display
-            if hasattr(self, 'preview_display') and self.preview_display:
+            if hasattr(self, "preview_display") and self.preview_display:
                 self.preview_display.stop_display_thread()
-            
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             gc.collect()

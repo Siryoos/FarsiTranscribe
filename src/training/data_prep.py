@@ -8,6 +8,7 @@ Supported input formats:
 Outputs a Hugging Face `DatasetDict` with train/validation splits and
 audio columns decoded using `datasets.Audio` for on-the-fly resampling.
 """
+
 from __future__ import annotations
 
 import os
@@ -65,7 +66,9 @@ def load_tabular(
 
     # Cast audio
     for k in dsd.keys():
-        dsd[k] = dsd[k].cast_column(config.path_column, Audio(sampling_rate=config.sampling_rate))
+        dsd[k] = dsd[k].cast_column(
+            config.path_column, Audio(sampling_rate=config.sampling_rate)
+        )
     return dsd
 
 
@@ -104,7 +107,9 @@ def load_jsonl(
         )
 
     for k in dsd.keys():
-        dsd[k] = dsd[k].cast_column(config.path_column, Audio(sampling_rate=config.sampling_rate))
+        dsd[k] = dsd[k].cast_column(
+            config.path_column, Audio(sampling_rate=config.sampling_rate)
+        )
     return dsd
 
 
@@ -120,17 +125,23 @@ def prepare_commonvoice_like(
 
     train_df = pd.read_csv(train_path, sep="\t")
     _ensure_columns(train_df, config.path_column, config.text_column)
-    train_df[config.path_column] = train_df[config.path_column].apply(lambda p: os.path.join(root_dir, p))
+    train_df[config.path_column] = train_df[config.path_column].apply(
+        lambda p: os.path.join(root_dir, p)
+    )
 
-    dsd = DatasetDict(train=Dataset.from_pandas(train_df.reset_index(drop=True)))
+    dsd = DatasetDict(
+        train=Dataset.from_pandas(train_df.reset_index(drop=True))
+    )
     if dev_path and os.path.exists(dev_path):
         dev_df = pd.read_csv(dev_path, sep="\t")
         _ensure_columns(dev_df, config.path_column, config.text_column)
-        dev_df[config.path_column] = dev_df[config.path_column].apply(lambda p: os.path.join(root_dir, p))
+        dev_df[config.path_column] = dev_df[config.path_column].apply(
+            lambda p: os.path.join(root_dir, p)
+        )
         dsd["validation"] = Dataset.from_pandas(dev_df.reset_index(drop=True))
 
     for k in dsd.keys():
-        dsd[k] = dsd[k].cast_column(config.path_column, Audio(sampling_rate=config.sampling_rate))
+        dsd[k] = dsd[k].cast_column(
+            config.path_column, Audio(sampling_rate=config.sampling_rate)
+        )
     return dsd
-
-

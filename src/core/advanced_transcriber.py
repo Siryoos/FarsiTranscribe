@@ -246,13 +246,15 @@ class AdvancedTranscriber:
                 transcription, metadata = result
             else:
                 # If transcribe_chunk returns only a string, create metadata
-                transcription = result if isinstance(result, str) else str(result)
+                transcription = (
+                    result if isinstance(result, str) else str(result)
+                )
                 metadata = {}
 
         # Ensure metadata is a dictionary
         if not isinstance(metadata, dict):
             metadata = {}
-        
+
         metadata["speaker_count"] = 1
         metadata["total_segments"] = 1
 

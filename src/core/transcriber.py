@@ -33,12 +33,15 @@ try:
     from ..utils.file_manager import TranscriptionFileManager
     from ..utils.repetition_detector import RepetitionDetector
     from ..utils.sentence_extractor import SentenceExtractor
+    
+    # Try to import pyannote diarizer first
     try:
-    from ..utils.pyannote_diarizer import PyannoteDiarizer, SpeakerSegment
-    PYAANOTE_AVAILABLE = True
-except ImportError:
-    from ..utils.speaker_diarization import SpeakerDiarizer, SpeakerSegment
-    PYAANOTE_AVAILABLE = False
+        from ..utils.pyannote_diarizer import PyannoteDiarizer, SpeakerSegment
+        PYAANOTE_AVAILABLE = True
+    except ImportError:
+        from ..utils.speaker_diarization import SpeakerDiarizer, SpeakerSegment
+        PYAANOTE_AVAILABLE = False
+        
 except ImportError:
     # Fallback for direct execution
     import sys

@@ -54,6 +54,26 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Force CPU mode (useful when CUDA has compatibility issues)",
     )
+    parser.add_argument(
+        "--no-diarization",
+        action="store_true",
+        help="Disable speaker diarization (use standard chunked transcription)",
+    )
+    parser.add_argument(
+        "--num-speakers",
+        type=int,
+        help="Specify exact number of speakers for diarization",
+    )
+    parser.add_argument(
+        "--min-speakers",
+        type=int,
+        help="Minimum number of speakers to detect",
+    )
+    parser.add_argument(
+        "--max-speakers",
+        type=int,
+        help="Maximum number of speakers to detect",
+    )
 
     return parser
 
@@ -90,6 +110,15 @@ def get_config(args: argparse.Namespace) -> TranscriptionConfig:
     if args.force_cpu:
         config.device = "cpu"
         config._apply_cpu_optimizations()
+    if args.no_diarization:
+        config.enable_speaker_diarization = False
+    
+    # Store diarization parameters for use in the transcriber
+    config.diarization_params = {
+        "num_speakers": args.num_speakers,
+        "min_speakers": args.min_speakers,
+        "max_speakers": args.max_speakers,
+    }
 
     return config
 

@@ -33,6 +33,12 @@ try:
     from ..utils.file_manager import TranscriptionFileManager
     from ..utils.repetition_detector import RepetitionDetector
     from ..utils.sentence_extractor import SentenceExtractor
+    try:
+    from ..utils.pyannote_diarizer import PyannoteDiarizer, SpeakerSegment
+    PYAANOTE_AVAILABLE = True
+except ImportError:
+    from ..utils.speaker_diarization import SpeakerDiarizer, SpeakerSegment
+    PYAANOTE_AVAILABLE = False
 except ImportError:
     # Fallback for direct execution
     import sys
@@ -42,6 +48,7 @@ except ImportError:
     from utils.file_manager import TranscriptionFileManager
     from utils.repetition_detector import RepetitionDetector
     from utils.sentence_extractor import SentenceExtractor
+    from utils.speaker_diarization import SpeakerDiarizer, SpeakerSegment
 
 
 class DeviceManager:
@@ -305,7 +312,17 @@ class StreamingAudioProcessor:
             if chunk.channels > 1:
                 chunk = chunk.set_channels(1)
 
-            return np.array(chunk.get_array_of_samples())
+            # Convert to float32 and normalize to [-1, 1] range
+            samples = np.array(chunk.get_array_of_samples(), dtype=np.float32)
+            # Normalize based on the bit depth
+            if chunk.sample_width == 1:  # 8-bit
+                samples = samples / 128.0
+            elif chunk.sample_width == 2:  # 16-bit
+                samples = samples / 32768.0
+            elif chunk.sample_width == 4:  # 32-bit
+                samples = samples / 2147483648.0
+            
+            return samples
 
         except Exception as e:
             self.logger.error(f"pydub extraction failed: {e}")
@@ -600,7 +617,7 @@ class UnifiedAudioTranscriber:
         return logging.getLogger(__name__)
 
     def transcribe_file(self, audio_file_path: str) -> str:
-        """Main transcription method with streaming processing and device fallback."""
+        """Main transcription method with optional speaker diarization and streaming processing."""
         try:
             if not os.path.exists(audio_file_path):
                 raise FileNotFoundError(
@@ -633,7 +650,86 @@ class UnifiedAudioTranscriber:
                 f"🔧 Model: {self.config.model_name}, Device: {current_device}"
             )
 
-            # Process with streaming
+            # Try speaker diarization first
+            diarized_segments_output = []
+            if getattr(self.config, "enable_speaker_diarization", False):
+                try:
+                    # Load entire audio once for diarization
+                    full_audio = self.audio_processor._extract_with_pydub(
+                        audio_file_path, 0.0, duration_s
+                    )
+                    if full_audio is not None and len(full_audio) > 0:
+                        # Use pyannote if available, otherwise fallback to basic diarizer
+                        if PYAANOTE_AVAILABLE:
+                            diarizer = PyannoteDiarizer(self.config)
+                            self.logger.info("Using pyannote.audio for speaker diarization")
+                        else:
+                            diarizer = SpeakerDiarizer(self.config)
+                            self.logger.info("Using basic MFCC diarizer (pyannote not available)")
+                        
+                        # Get diarization parameters
+                        diarization_params = getattr(self.config, "diarization_params", {})
+                        num_speakers = diarization_params.get("num_speakers")
+                        min_speakers = diarization_params.get("min_speakers")
+                        max_speakers = diarization_params.get("max_speakers")
+                        
+                        diarized_segments = diarizer.diarize_audio(
+                            full_audio, 
+                            self.config.target_sample_rate,
+                            num_speakers=num_speakers,
+                            min_speakers=min_speakers,
+                            max_speakers=max_speakers
+                        )
+                        
+                        # Check if diarization found enough segments
+                        total_diarized_time = sum(seg.end_time - seg.start_time for seg in diarized_segments)
+                        coverage_percentage = (total_diarized_time / duration_s) * 100
+                        
+                        if coverage_percentage < 20:  # If less than 20% coverage, fallback to standard
+                            self.logger.warning(f"Diarization only covered {coverage_percentage:.1f}% of audio, using standard transcription")
+                            diarized_segments_output = []
+                        else:
+                            # Build per-speaker transcription
+                            for idx, seg in enumerate(diarized_segments):
+                                text = self.whisper_transcriber.transcribe_chunk(
+                                    seg.audio_data
+                                )
+                                diarized_segments_output.append(
+                                    {
+                                        "speaker_id": int(seg.speaker_id),
+                                        "start_time": float(seg.start_time),
+                                        "end_time": float(seg.end_time),
+                                        "confidence": float(seg.confidence),
+                                        "text": text,
+                                    }
+                                )
+                            
+                            if diarized_segments_output:
+                                # Build unified text from diarized segments (ordered)
+                                diarized_segments_output.sort(key=lambda s: s.get("start_time", 0.0))
+                                final_text = "\n".join(
+                                    [
+                                        f"[Speaker {s['speaker_id']}] ({s['start_time']:.2f}-{s['end_time']:.2f}): {s['text']}".strip()
+                                        for s in diarized_segments_output
+                                        if s.get("text", "").strip()
+                                    ]
+                                )
+
+                                # Save unified diarized and per-segment outputs
+                                file_manager.save_unified_transcription(final_text)
+                                file_manager.save_speaker_transcription(diarized_segments_output)
+                                print(
+                                    f"✅ Diarized transcription saved to: {file_manager.speaker_file_path}"
+                                )
+                                return final_text
+                            
+                except Exception as e:
+                    self.logger.warning(
+                        f"Speaker diarization failed, continuing without diarization: {e}"
+                    )
+
+            # Fallback: standard chunked streaming transcription
+            print("🔄 Using standard chunked transcription...")
             transcriptions = []
             with tqdm(
                 total=estimated_chunks, desc="🎙️ Transcribing", unit="chunk"

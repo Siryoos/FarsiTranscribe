@@ -5,7 +5,7 @@ Enhanced file management with text post-processing capabilities.
 import os
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 from ..core.config import TranscriptionConfig
 from .repetition_detector import RepetitionDetector
 
@@ -38,6 +38,13 @@ class TranscriptionFileManager:
         )
         self.metadata_file_path = (
             self.output_directory / f"{base_filename}_metadata.json"
+        )
+        # Speaker-diarized outputs
+        self.speaker_file_path = (
+            self.output_directory / f"{base_filename}_speaker_transcription.txt"
+        )
+        self.speaker_segments_json_path = (
+            self.output_directory / f"{base_filename}_speaker_segments.json"
         )
 
     def save_unified_transcription(self, content: str) -> bool:
@@ -91,6 +98,40 @@ class TranscriptionFileManager:
                 json.dump(metadata, file, indent=2, ensure_ascii=False)
         except Exception as e:
             self.logger.error(f"Failed to save metadata: {e}")
+
+    def save_speaker_transcription(self, segments: List[Dict[str, Any]]) -> bool:
+        """Save speaker-labeled transcription and segment metadata.
+
+        Expected segment dict keys: speaker_id, start_time, end_time, text, confidence (optional)
+        """
+        try:
+            # Build labeled text
+            lines: List[str] = []
+            for seg in segments:
+                speaker_id = seg.get("speaker_id", 0)
+                start = seg.get("start_time", 0.0)
+                end = seg.get("end_time", 0.0)
+                text = (seg.get("text") or "").strip()
+                if not text:
+                    continue
+                lines.append(f"[Speaker {speaker_id}] ({start:.2f}-{end:.2f}): {text}")
+
+            labeled_text = "\n".join(lines)
+
+            # Save labeled text
+            with open(self.speaker_file_path, "w", encoding="utf-8") as f:
+                f.write(labeled_text)
+
+            # Save raw segments as JSON
+            import json
+
+            with open(self.speaker_segments_json_path, "w", encoding="utf-8") as jf:
+                json.dump(segments, jf, indent=2, ensure_ascii=False)
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to save speaker transcription: {e}")
+            return False
 
     def get_transcription_info(self) -> Dict[str, Any]:
         """Get comprehensive information about transcription files."""

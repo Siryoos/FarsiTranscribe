@@ -1,8 +1,8 @@
 """
-Updated __init__.py to use unified components.
+Unified public API for the modern `src` package.
 """
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 __author__ = "FarsiTranscribe Team"
 
 from .core.transcriber import UnifiedAudioTranscriber

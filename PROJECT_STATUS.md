@@ -1,4 +1,4 @@
-# FarsiTranscribe Project Status
+# FarsiTranscribe Project Status (archived)
 
 ## 🎯 Project Overview
 FarsiTranscribe is a production-ready audio transcription system specifically optimized for Persian/Farsi language using OpenAI's Whisper model.
@@ -200,6 +200,8 @@ python examples/advanced_usage.py
 - **Documentation**: Update relevant documentation
 
 ## 🏆 Project Achievements
+
+Note: This status document is archived. For up-to-date features and usage, refer to the unified `README.md`.
 
 - **✅ Production Ready**: Fully functional transcription system
 - **✅ Persian Optimized**: Native support for Persian/Farsi language

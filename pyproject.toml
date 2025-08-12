@@ -74,6 +74,7 @@ dev = [
 
 [project.scripts]
 farsitranscribe = "main:main"
+farsi-transcribe = "main:main"
 
 [project.urls]
 Homepage = "https://github.com/siryoos/FarsiTranscribe"
@@ -83,7 +84,15 @@ Repository = "https://github.com/siryoos/FarsiTranscribe"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["src*", "farsi_transcribe*"]
+
+[tool.setuptools]
+py-modules = [
+  "main",
+  "install_pyannote",
+  "cuda_diagnostics",
+  "demo_transcription",
+]
 
 [tool.black]
 line-length = 79

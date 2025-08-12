@@ -41,9 +41,17 @@ class SpeakerDiarizer:
         self.max_speakers = 8  # Maximum number of speakers to detect
 
     def diarize_audio(
-        self, audio_data: np.ndarray, sample_rate: int
+        self,
+        audio_data: np.ndarray,
+        sample_rate: int,
+        num_speakers: Optional[int] = None,
+        min_speakers: Optional[int] = None,
+        max_speakers: Optional[int] = None,
     ) -> List[SpeakerSegment]:
-        """Perform speaker diarization on audio data."""
+        """Perform speaker diarization on audio data.
+
+        Optional hints can be provided for speaker counts.
+        """
         try:
             self.logger.info("Starting speaker diarization...")
 
@@ -61,7 +69,12 @@ class SpeakerDiarizer:
             )
 
             # Step 4: Cluster speakers
-            speaker_clusters = self._cluster_speakers(speaker_embeddings)
+            speaker_clusters = self._cluster_speakers(
+                speaker_embeddings,
+                forced_n=num_speakers,
+                min_n=min_speakers,
+                max_n=max_speakers,
+            )
 
             # Step 5: Create speaker segments
             diarized_segments = self._create_speaker_segments(
@@ -182,7 +195,13 @@ class SpeakerDiarizer:
 
         return embeddings
 
-    def _cluster_speakers(self, embeddings: List[np.ndarray]) -> List[int]:
+    def _cluster_speakers(
+        self,
+        embeddings: List[np.ndarray],
+        forced_n: Optional[int] = None,
+        min_n: Optional[int] = None,
+        max_n: Optional[int] = None,
+    ) -> List[int]:
         """Cluster speaker embeddings to identify different speakers."""
         if len(embeddings) < 2:
             return [0] * len(embeddings)
@@ -190,12 +209,28 @@ class SpeakerDiarizer:
         # Convert to numpy array
         X = np.array(embeddings)
 
+        # Forced number of clusters if provided
+        if forced_n is not None and forced_n >= 1:
+            n = min(max(1, forced_n), max(1, len(embeddings)))
+            if n == 1:
+                return [0] * len(embeddings)
+            clustering = AgglomerativeClustering(n_clusters=n)
+            return clustering.fit_predict(X).tolist()
+
         # Determine optimal number of clusters
-        max_clusters = min(self.max_speakers, len(embeddings) - 1)
-        best_n_clusters = 1
+        upper_bound = self.max_speakers
+        if max_n is not None:
+            upper_bound = min(upper_bound, max_n)
+        max_clusters = min(upper_bound, len(embeddings) - 1)
+
+        lower_bound = 1
+        if min_n is not None:
+            lower_bound = max(lower_bound, min_n)
+
+        best_n_clusters = lower_bound
         best_score = -1
 
-        for n_clusters in range(1, max_clusters + 1):
+        for n_clusters in range(lower_bound, max_clusters + 1):
             if n_clusters == 1:
                 score = 0
             else:
@@ -213,7 +248,7 @@ class SpeakerDiarizer:
                 best_n_clusters = n_clusters
 
         # Perform final clustering
-        if best_n_clusters == 1:
+        if best_n_clusters <= 1:
             return [0] * len(embeddings)
 
         clustering = AgglomerativeClustering(n_clusters=best_n_clusters)

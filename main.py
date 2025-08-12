@@ -30,16 +30,8 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         "-m",
-        choices=[
-            "nezamisafa/whisper-persian-v4",
-            "tiny",
-            "base",
-            "small",
-            "medium",
-            "large",
-        ],
         default="nezamisafa/whisper-persian-v4",
-        help="Whisper model (default: Persian fine-tuned model)",
+        help="Whisper model or local checkpoint path",
     )
     parser.add_argument(
         "--output-dir", "-o", default="./output", help="Output directory"

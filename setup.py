@@ -10,7 +10,7 @@ readme_path = Path(__file__).parent / "README.md"
 long_description = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
 
 setup(
-    name="farsi-transcribe",
+    name="farsitranscribe",
     version="2.0.0",
     author="FarsiTranscribe Team",
     author_email="siryoosa@gmail.com",
@@ -18,7 +18,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/siryoos/FarsiTranscribe",
-    packages=find_packages(),
+    packages=find_packages(include=["src*", "farsi_transcribe*"]),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
@@ -65,6 +65,7 @@ setup(
     entry_points={
         "console_scripts": [
             "farsi-transcribe=main:main",
+            "farsitranscribe=main:main",
         ],
     },
     include_package_data=True,

@@ -71,7 +71,7 @@ cd FarsiTranscribe
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
+# Install dependencies (includes optional diarization and training deps)
 pip install -r requirements.txt
 
 # Install the package
@@ -112,8 +112,9 @@ python main.py audio.mp3 --quality high
 # Use specific model (Persian model is default)
 python main.py audio.mp3 --model nezamisafa/whisper-persian-v4
 
-# Use standard Whisper model
+# Use standard Whisper model or a local fine-tuned checkpoint directory
 python main.py audio.mp3 --model large
+python main.py audio.mp3 --model ./checkpoints
 
 # Custom output directory
 python main.py audio.mp3 --output-dir results/
@@ -305,6 +306,51 @@ python -m farsi_transcribe large_audio.mp3 --stream
 result = transcriber.transcribe_stream("large_audio.mp3")
 ```
 
+### Speaker Diarization
+
+FarsiTranscribe supports intelligent speaker diarization. It prefers `pyannote.audio` if installed and falls back to a built‑in MFCC diarizer, then to non‑diarized transcription if needed.
+
+- Install advanced diarization:
+```bash
+python install_pyannote.py
+```
+
+- Enable diarization (default in higher quality modes):
+```bash
+python main.py audio.wav --quality 95-percent
+```
+
+- Disable diarization:
+```bash
+python main.py audio.wav --no-diarization
+```
+
+- Hint speaker count (improves accuracy when known):
+```bash
+python main.py audio.wav --num-speakers 2
+```
+
+- Intelligent behavior:
+  - If diarized coverage < 20% of audio, automatically fall back to standard chunked transcription
+  - Consecutive segments from the same speaker are merged to reduce fragmentation
+  - Robust fallback chain: pyannote ➜ MFCC diarizer ➜ standard transcription
+
+### Enhanced Preview Display
+
+When preview is enabled, you get a live, Persian‑friendly terminal display with chunk progress and inline previews.
+
+- Enable (default):
+```bash
+python main.py audio_file.mp3
+```
+
+- Disable preview:
+```bash
+python main.py audio_file.mp3 --no-preview
+```
+
+The preview integrates with chunking, diarization, and memory manager; it uses Rich when available and falls back to a simple mode.
+
 ## 🔧 Configuration
 
 ### Configuration Options
@@ -319,6 +365,25 @@ result = transcriber.transcribe_stream("large_audio.mp3")
 | `persian_normalization` | bool | True | Normalize Persian text |
 | `remove_diacritics` | bool | False | Remove Arabic diacritics |
 | `output_formats` | list | ["txt", "json"] | Output formats |
+
+### Model selection
+
+Use `--model` to pass either a Hugging Face model ID (e.g., `nezamisafa/whisper-persian-v4`, `openai/whisper-small`) or a local checkpoint directory produced by training.
+
+### Fine-tuning (optional)
+
+This repo includes a minimal fine‑tuning scaffold. To train on your dataset:
+
+```bash
+python -m src.training.train_whisper /path/to/data.csv \
+  --data-format csv \
+  --model openai/whisper-small \
+  --language fa \
+  --output-dir ./checkpoints \
+  --max-steps 2000 --batch-size 8 --grad-accum 2 --lr 1e-4 --fp16
+```
+
+Dataset formats: CSV/TSV/JSONL with `audio_path`, `text` (and optional `speaker_id`, `split`). The output checkpoint can be used with `--model ./checkpoints`.
 
 ### Environment Variables
 

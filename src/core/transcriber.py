@@ -678,12 +678,18 @@ class UnifiedAudioTranscriber:
                         max_speakers = diarization_params.get("max_speakers")
                         
                         diarized_segments = diarizer.diarize_audio(
-                            full_audio, 
+                            full_audio,
                             self.config.target_sample_rate,
                             num_speakers=num_speakers,
                             min_speakers=min_speakers,
-                            max_speakers=max_speakers
+                            max_speakers=max_speakers,
                         )
+
+                        # Merge adjacent segments by the same speaker
+                        try:
+                            diarized_segments = diarizer.merge_similar_speakers(diarized_segments)
+                        except Exception:
+                            pass
                         
                         # Check if diarization found enough segments
                         total_diarized_time = sum(seg.end_time - seg.start_time for seg in diarized_segments)

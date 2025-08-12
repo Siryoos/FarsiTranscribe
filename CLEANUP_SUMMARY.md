@@ -1,4 +1,4 @@
-# Codebase Cleanup and Merge Summary
+# Codebase Cleanup and Merge Summary (archived)
 
 ## 🧹 **Cleanup Completed Successfully!**
 
@@ -135,7 +135,7 @@ display.print_persian_preview("سلام دنیا", part_number=1)
 | `test_enhanced_preview.py` | ✅ **UPDATED** | Updated import paths |
 | `src/utils/enhanced_preview_display.py` | ❌ **DELETED** | Redundant after merge |
 
-## 🎉 **Summary:**
+## 🎉 **Summary (archival):**
 
 The codebase cleanup and merge has been **successfully completed**! 
 
@@ -148,6 +148,8 @@ The codebase cleanup and merge has been **successfully completed**!
 - ✅ **Preserved all features**
 
 The enhanced preview display system is now fully integrated into the unified terminal display, providing a professional, real-time transcription preview while maintaining a clean, maintainable codebase structure.
+
+Note: This document is kept for historical context. For current usage and architecture, please see the unified `README.md`.
 
 ---
 

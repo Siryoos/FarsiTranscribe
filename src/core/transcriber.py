@@ -639,6 +639,7 @@ class UnifiedAudioTranscriber:
             print("🔄 Analyzing audio...")
             audio_info = self.audio_processor.get_audio_info(audio_file_path)
             duration_s = audio_info["duration_seconds"]
+            self.audio_duration = duration_s  # Store for preview display
 
             # Estimate chunks
             chunk_duration_s = self.config.chunk_duration_ms / 1000
@@ -733,6 +734,22 @@ class UnifiedAudioTranscriber:
 
             # Fallback: standard chunked streaming transcription
             print("🔄 Using standard chunked transcription...")
+            
+            # Initialize enhanced preview display if enabled
+            if self.config.enable_sentence_preview:
+                try:
+                    from ..utils.enhanced_preview_display import create_preview_display
+                    self.preview_display = create_preview_display(
+                        estimated_chunks, 
+                        estimated_duration=audio_duration if hasattr(self, 'audio_duration') else None
+                    )
+                    print("✨ Enhanced preview display enabled")
+                except ImportError:
+                    self.preview_display = None
+                    print("⚠️  Enhanced preview not available, using basic preview")
+            else:
+                self.preview_display = None
+            
             transcriptions = []
             with tqdm(
                 total=estimated_chunks, desc="🎙️ Transcribing", unit="chunk"
@@ -741,6 +758,26 @@ class UnifiedAudioTranscriber:
                     chunk_index,
                     chunk_array,
                 ) in self.audio_processor.stream_chunks(audio_file_path):
+                    # Track chunk in preview display
+                    if self.preview_display:
+                        # Estimate timing based on chunk index
+                        chunk_start = (chunk_index / estimated_chunks) * (audio_duration if hasattr(self, 'audio_duration') else 0)
+                        chunk_end = ((chunk_index + 1) / estimated_chunks) * (audio_duration if hasattr(self, 'audio_duration') else 0)
+                        chunk_duration = chunk_end - chunk_start
+                        
+                        self.preview_display.add_chunk(
+                            chunk_index, 
+                            chunk_start, 
+                            chunk_end, 
+                            chunk_duration
+                        )
+                        self.preview_display.set_current_chunk(chunk_index)
+                        self.preview_display.update_chunk_progress(chunk_index, 0.0)
+                    
+                    # Update progress to show transcription in progress
+                    if self.preview_display:
+                        self.preview_display.update_chunk_progress(chunk_index, 50.0)
+                    
                     transcription = self.whisper_transcriber.transcribe_chunk(
                         chunk_array
                     )
@@ -751,10 +788,17 @@ class UnifiedAudioTranscriber:
                         self.config.enable_sentence_preview
                         and transcription.strip()
                     ):
-                        preview = transcription.strip()[:80]
-                        if len(transcription) > 80:
-                            preview += "..."
-                        print(f"\n📝 Chunk {chunk_index + 1}: {preview}")
+                        # Use enhanced preview display if available
+                        if hasattr(self, 'preview_display'):
+                            self.preview_display.update_chunk_progress(
+                                chunk_index, 100.0, transcription.strip()
+                            )
+                        else:
+                            # Fallback to simple preview
+                            preview = transcription.strip()[:80]
+                            if len(transcription) > 80:
+                                preview += "..."
+                            print(f"\n📝 Chunk {chunk_index + 1}: {preview}")
 
                     pbar.update(1)
 
@@ -798,6 +842,10 @@ class UnifiedAudioTranscriber:
     def _cleanup(self):
         """Cleanup resources."""
         try:
+            # Cleanup preview display
+            if hasattr(self, 'preview_display') and self.preview_display:
+                self.preview_display.stop_display_thread()
+            
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             gc.collect()

@@ -18,7 +18,9 @@ from .unified_audio_preprocessor import (
 
 from .unified_terminal_display import (
     UnifiedTerminalDisplay,
-    create_unified_display,
+    EnhancedPreviewDisplay,
+    SimplePreviewDisplay,
+    create_preview_display,
     get_terminal_capabilities,
 )
 
@@ -52,7 +54,7 @@ get_preprocessing_capabilities = get_unified_preprocessing_capabilities
 
 # Terminal display
 TerminalDisplay = UnifiedTerminalDisplay
-create_terminal_display = create_unified_display
+create_terminal_display = create_preview_display
 
 # Memory management
 EnhancedMemoryManager = UnifiedMemoryManager
@@ -68,9 +70,11 @@ __all__ = [
     # Unified modules
     "UnifiedAudioPreprocessor",
     "UnifiedTerminalDisplay",
+    "EnhancedPreviewDisplay",
+    "SimplePreviewDisplay",
     "UnifiedMemoryManager",
     "create_unified_preprocessor",
-    "create_unified_display",
+    "create_preview_display",
     "create_unified_memory_manager",
     "get_unified_preprocessing_capabilities",
     "get_terminal_capabilities",
@@ -92,6 +96,7 @@ __all__ = [
     "EnhancedMemoryManager",
     "create_audio_preprocessor",
     "create_terminal_display",
+    "create_preview_display",
     "create_memory_manager",
     "get_preprocessing_capabilities",
 ]

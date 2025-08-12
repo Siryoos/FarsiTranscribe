@@ -738,10 +738,10 @@ class UnifiedAudioTranscriber:
             # Initialize enhanced preview display if enabled
             if self.config.enable_sentence_preview:
                 try:
-                    from ..utils.enhanced_preview_display import create_preview_display
+                    from ..utils.unified_terminal_display import create_preview_display
                     self.preview_display = create_preview_display(
                         estimated_chunks, 
-                        estimated_duration=audio_duration if hasattr(self, 'audio_duration') else None
+                        estimated_duration=self.audio_duration
                     )
                     print("✨ Enhanced preview display enabled")
                 except ImportError:

@@ -126,7 +126,7 @@ python main.py audio.mp3 --quality memory-optimized
 python main.py audio.mp3 --quality 95-percent
 ```
 
-### Python API
+### Python API (Legacy)
 
 ```python
 from farsi_transcribe import TranscriptionConfig, FarsiTranscriber, ConfigPresets
@@ -147,6 +147,17 @@ with FarsiTranscriber(config) as transcriber:
 ### Final Project Structure
 
 ```
+
+### Modern `src` API (Optional)
+
+```
+from src.core.config import TranscriptionConfig, ConfigFactory
+from src.core import UnifiedTranscriber
+
+config = ConfigFactory.create_persian_optimized_config()
+transcriber = UnifiedTranscriber(config)
+text = transcriber.transcribe_file("audio.mp3")
+```
 FarsiTranscribe/
 ├── main.py                          # Main entry point
 ├── README.md                        # Project documentation
@@ -166,7 +177,7 @@ FarsiTranscribe/
 │   │   └── advanced_transcriber.py  # Advanced features
 │   └── utils/                       # Consolidated utility modules
 │       ├── __init__.py
-│       ├── unified_audio_preprocessor.py     # Consolidated audio preprocessing
+│       ├── unified_audio_preprocessor.py     # (Deprecated) Re-export for compatibility
 │       ├── unified_terminal_display.py       # Consolidated terminal display
 │       ├── unified_memory_manager.py         # Consolidated memory management
 │       ├── chunk_calculator.py               # Simple utility
@@ -195,9 +206,28 @@ FarsiTranscribe/
 
 ### Consolidated Utils Architecture
 
-The utils directory has been consolidated to eliminate code duplication:
+The utils directory has been consolidated to eliminate code duplication. The canonical audio preprocessor now lives under `src/preprocessing`:
 
-#### **Unified Audio Preprocessing** (`unified_audio_preprocessor.py`)
+#### **Unified Audio Preprocessing** (`src/preprocessing/audio_preprocessor.py`)
+### Smart chunking (VAD-based)
+
+To enable smart chunking in streaming mode, ensure `use_smart_chunking=True` in `TranscriptionConfig` (default), and that optional `webrtcvad` is installed. The transcriber will internally use `UnifiedAudioPreprocessor.create_smart_chunks()` when available.
+
+Example (manual usage):
+
+```
+from src.preprocessing import UnifiedAudioPreprocessor
+from pydub import AudioSegment
+
+pre = UnifiedAudioPreprocessor(config)
+audio = AudioSegment.from_file("input.m4a")
+segments = pre.create_smart_chunks(
+    audio,
+    target_chunk_duration_ms=config.chunk_duration_ms,
+    overlap_ms=config.overlap_ms,
+)
+# segments is a list of (start_ms, end_ms)
+```
 - **Before**: 3 separate files (1,214 lines total)
 - **After**: 1 unified file (675 lines) - **44% reduction**
 - **Features**: Persian-specific frequency optimization, Facebook Denoiser integration, audio quality assessment, voice activity detection, smart chunking, noise reduction, speech enhancement, format optimization

@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any, Iterator
 import numpy as np
 from pydub import AudioSegment
+try:
+    # Prefer the new unified preprocessor when available
+    from src.preprocessing import UnifiedAudioPreprocessor  # type: ignore
+except Exception:
+    UnifiedAudioPreprocessor = None  # type: ignore
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -73,24 +78,41 @@ class AudioProcessor:
         
         logger.info(f"Loading audio file: {audio_path}")
         
-        # Load audio using pydub for compatibility
+        # If unified preprocessor exists, use it for loading + preprocessing
+        if UnifiedAudioPreprocessor is not None:
+            try:
+                pre = UnifiedAudioPreprocessor(type("Cfg", (), {"target_sample_rate": self.sample_rate,
+                                                                "enable_noise_reduction": True,
+                                                                "enable_voice_activity_detection": False,
+                                                                "enable_speech_enhancement": False,
+                                                                "enable_facebook_denoiser": False,
+                                                                "enable_persian_optimization": True,
+                                                                "adaptive_processing": True,})())
+                samples, _meta = pre.preprocess_audio(str(audio_path))
+                metadata = {
+                    'duration_seconds': _meta.get('original_duration', 0.0),
+                    'sample_rate': self.sample_rate,
+                    'num_samples': len(samples),
+                    'original_file': str(audio_path),
+                    'format': audio_path.suffix
+                }
+                logger.info(f"Audio loaded via unified preprocessor: {metadata['duration_seconds']:.1f}s, {metadata['num_samples']} samples")
+                return samples, metadata
+            except Exception as e:
+                logger.warning(f"Unified preprocessor failed, falling back to legacy load: {e}")
+
+        # Legacy load path
         try:
             audio = AudioSegment.from_file(str(audio_path))
         except Exception as e:
             logger.error(f"Failed to load audio: {e}")
             raise
-        
-        # Convert to mono and normalize
+
         audio = audio.set_channels(1)
         audio = audio.normalize()
-        
-        # Resample to target sample rate
         audio = audio.set_frame_rate(self.sample_rate)
-        
-        # Convert to numpy array
+
         samples = np.array(audio.get_array_of_samples()).astype(np.float32)
-        
-        # Normalize to [-1, 1]
         if samples.size > 0:
             max_val = np.max(np.abs(samples))
             if max_val > 0:

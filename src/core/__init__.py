@@ -1,8 +1,11 @@
 """
-Core transcription functionality.
+Core transcription functionality for FarsiTranscribe.
 """
 
+from .transcriber import UnifiedAudioTranscriber as UnifiedTranscriber
 from .config import TranscriptionConfig
-from .transcriber import UnifiedAudioTranscriber
 
-__all__ = ["TranscriptionConfig", "UnifiedAudioTranscriber"]
+__all__ = [
+    "UnifiedTranscriber",
+    "TranscriptionConfig",
+]

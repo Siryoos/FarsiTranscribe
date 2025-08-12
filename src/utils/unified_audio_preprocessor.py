@@ -1,7 +1,8 @@
 """
 Unified Audio Preprocessor for Persian Transcription
-Consolidates functionality from multiple audio preprocessor modules.
-Implements comprehensive audio preprocessing with Persian-specific optimizations.
+
+NOTE: This module is deprecated. Use `src.preprocessing.audio_preprocessor`.
+It will remain for backward compatibility until the next major release.
 """
 
 import os

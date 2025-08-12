@@ -45,7 +45,7 @@ FarsiTranscribe/
 │   │   ├── config.py            # Configuration management
 │   │   └── advanced_transcriber.py # Advanced features
 │   ├── utils/                    # Utility modules
-│   │   ├── unified_audio_preprocessor.py # Audio preprocessing
+│   │   ├── unified_audio_preprocessor.py # (Deprecated) Re-export for compatibility
 │   │   ├── persian_text_postprocessor.py # Persian text handling
 │   │   ├── quality_assessor.py  # Quality assessment
 │   │   └── ...                  # Additional utilities

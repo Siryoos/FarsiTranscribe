@@ -28,7 +28,7 @@
 src/utils/
 ├── __init__.py                    # Updated exports
 ├── unified_terminal_display.py    # ✅ CONSOLIDATED (Enhanced + Original)
-├── unified_audio_preprocessor.py  # Audio processing
+├── unified_audio_preprocessor.py  # (Deprecated) Re-export for compatibility
 ├── unified_memory_manager.py      # Memory management
 ├── file_manager.py                # File operations
 ├── speaker_diarization.py         # Speaker detection

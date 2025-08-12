@@ -27,6 +27,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from .config import TranscriptionConfig
+from ..preprocessing import UnifiedAudioPreprocessor
+from ..utils.preprocessing_validator import validate_preprocessing
 
 # Handle imports with fallback for direct execution
 try:
@@ -347,6 +349,46 @@ class StreamingAudioProcessor:
             self.logger.error(f"pydub extraction failed: {e}")
             return None
 
+    def stream_smart_chunks(
+        self,
+        file_path: str,
+        segments_ms: List[Tuple[int, int]],
+    ) -> Iterator[Tuple[int, np.ndarray]]:
+        """Stream audio using precomputed smart segments in milliseconds.
+
+        Args:
+            file_path: Path to the audio file
+            segments_ms: List of (start_ms, end_ms) tuples defining segments
+
+        Yields:
+            Tuples of (chunk_index, audio_array)
+        """
+        try:
+            for idx, (start_ms, end_ms) in enumerate(segments_ms):
+                start_s = max(0.0, float(start_ms) / 1000.0)
+                duration_s = max(0.0, float(end_ms - start_ms) / 1000.0)
+
+                if duration_s <= 0:
+                    continue
+
+                chunk_array = self._extract_with_ffmpeg(
+                    file_path, start_s, duration_s
+                )
+
+                if chunk_array is None or len(chunk_array) == 0:
+                    chunk_array = self._extract_with_pydub(
+                        file_path, start_s, duration_s
+                    )
+
+                if chunk_array is not None and len(chunk_array) > 0:
+                    yield idx, chunk_array
+
+                # Periodic cleanup
+                if idx % 10 == 0:
+                    gc.collect()
+        except Exception as e:
+            self.logger.error(f"Smart streaming failed: {e}")
+
 
 class OptimizedWhisperTranscriber:
     """Optimized Whisper transcriber with model caching and device fallback."""
@@ -630,6 +672,11 @@ class UnifiedAudioTranscriber:
         self.config = config
         self.logger = self._setup_logging()
         self.memory_manager = UnifiedMemoryManager(config)
+        # Optional unified preprocessor (can be used to preprocess full audio once)
+        try:
+            self.audio_preprocessor = UnifiedAudioPreprocessor(config)
+        except Exception:
+            self.audio_preprocessor = None
         self.audio_processor = StreamingAudioProcessor(config)
         self.whisper_transcriber = OptimizedWhisperTranscriber(config)
         self.sentence_extractor = SentenceExtractor()
@@ -687,6 +734,24 @@ class UnifiedAudioTranscriber:
             print(
                 f"🔧 Model: {self.config.model_name}, Device: {current_device}"
             )
+
+            # Capability validation (preprocessing & environment)
+            if getattr(self.config, "enable_preprocessing", True):
+                try:
+                    validation = validate_preprocessing(self.config)
+                    caps = validation.capabilities
+                    available = [
+                        name
+                        for name, cap in caps.items()
+                        if getattr(cap, "available", False)
+                    ]
+                    print(
+                        "🧩 Preprocessing capabilities: "
+                        + (", ".join(sorted(available)) if available else "basic")
+                    )
+                except Exception:
+                    # Non-fatal if validation fails
+                    pass
 
             # Try speaker diarization first
             diarized_segments_output = []
@@ -799,8 +864,13 @@ class UnifiedAudioTranscriber:
                         f"Speaker diarization failed, continuing without diarization: {e}"
                     )
 
-            # Fallback: standard chunked streaming transcription
-            print("🔄 Using standard chunked transcription...")
+            # Decide chunking strategy
+            use_smart = getattr(self.config, "use_smart_chunking", True)
+            print(
+                "🔄 Using smart chunking..."
+                if use_smart and self.audio_preprocessor
+                else "🔄 Using standard chunked transcription..."
+            )
 
             # Initialize enhanced preview display if enabled
             if self.config.enable_sentence_preview:
@@ -823,13 +893,40 @@ class UnifiedAudioTranscriber:
                 self.preview_display = None
 
             transcriptions = []
-            with tqdm(
-                total=estimated_chunks, desc="🎙️ Transcribing", unit="chunk"
-            ) as pbar:
-                for (
-                    chunk_index,
-                    chunk_array,
-                ) in self.audio_processor.stream_chunks(audio_file_path):
+            # Prepare smart segments if enabled
+            smart_segments = None
+            if use_smart and self.audio_preprocessor:
+                try:
+                    # Load minimal header info and full audio once via pydub
+                    audio = AudioSegment.from_file(audio_file_path)
+                    # Create smart segments with VAD-informed chunking
+                    smart_segments = self.audio_preprocessor.create_smart_chunks(
+                        audio,
+                        target_chunk_duration_ms=int(
+                            self.config.chunk_duration_ms
+                        ),
+                        overlap_ms=int(self.config.overlap_ms),
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Smart chunking unavailable, falling back: {e}"
+                    )
+                    smart_segments = None
+
+            # Choose streaming iterator
+            if smart_segments:
+                total_chunks = len(smart_segments)
+                chunk_iter: Iterator[Tuple[int, np.ndarray]] = (
+                    self.audio_processor.stream_smart_chunks(
+                        audio_file_path, smart_segments
+                    )
+                )
+            else:
+                total_chunks = estimated_chunks
+                chunk_iter = self.audio_processor.stream_chunks(audio_file_path)
+
+            with tqdm(total=total_chunks, desc="🎙️ Transcribing", unit="chunk") as pbar:
+                for (chunk_index, chunk_array) in chunk_iter:
                     # Track chunk in preview display
                     if self.preview_display:
                         # Estimate timing based on chunk index

@@ -10,7 +10,7 @@ from .file_manager import TranscriptionFileManager
 from .chunk_calculator import ChunkCalculator, create_chunk_calculator
 
 # Unified modules (consolidated functionality)
-from .unified_audio_preprocessor import (
+from ..preprocessing import (
     UnifiedAudioPreprocessor,
     create_unified_preprocessor,
     get_unified_preprocessing_capabilities,

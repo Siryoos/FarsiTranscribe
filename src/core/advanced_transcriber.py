@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .config import TranscriptionConfig
 from .transcriber import OptimizedWhisperTranscriber
-from ..utils.enhanced_audio_preprocessor import EnhancedAudioPreprocessor
+from ..preprocessing import UnifiedAudioPreprocessor
 from ..utils.persian_text_postprocessor import PersianTextPostProcessor
 from ..utils.advanced_model_ensemble import AdvancedModelEnsemble
 from ..utils.speaker_diarization import SpeakerDiarizer, SpeakerSegment
@@ -27,7 +27,7 @@ class AdvancedTranscriber:
         self.logger = logging.getLogger(__name__)
 
         # Initialize components
-        self.audio_preprocessor = EnhancedAudioPreprocessor(config)
+        self.audio_preprocessor = UnifiedAudioPreprocessor(config)
         self.text_postprocessor = PersianTextPostProcessor(config)
 
         # Initialize advanced components if enabled

@@ -767,8 +767,9 @@ class UnifiedAudioTranscriber:
                     # Track chunk in preview display
                     if self.preview_display:
                         # Estimate timing based on chunk index
-                        chunk_start = (chunk_index / estimated_chunks) * (audio_duration if hasattr(self, 'audio_duration') else 0)
-                        chunk_end = ((chunk_index + 1) / estimated_chunks) * (audio_duration if hasattr(self, 'audio_duration') else 0)
+                        total_duration = getattr(self, 'audio_duration', 0)
+                        chunk_start = (chunk_index / estimated_chunks) * total_duration
+                        chunk_end = ((chunk_index + 1) / estimated_chunks) * total_duration
                         chunk_duration = chunk_end - chunk_start
                         
                         self.preview_display.add_chunk(

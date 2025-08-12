@@ -36,19 +36,19 @@ test:
 	pytest tests/ -v
 
 test-coverage:
-	pytest tests/ -v --cov=src --cov-report=html --cov-report=term-missing
+    	pytest tests/ -v --cov=farsi_transcribe --cov-report=html --cov-report=term-missing
 
 test-fast:
 	pytest tests/ -v -m "not slow"
 
 # Code Quality
 lint:
-	flake8 src/ tests/ main.py
-	mypy src/ main.py
+	flake8 farsi_transcribe/ tests/ farsi_transcribe/cli.py
+	mypy farsi_transcribe/
 
 format:
-	black src/ tests/ main.py examples/
-	isort src/ tests/ main.py examples/
+	black farsi_transcribe/ tests/ examples/
+	isort farsi_transcribe/ tests/ examples/
 
 # Development
 clean:

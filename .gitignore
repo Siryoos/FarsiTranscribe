@@ -436,16 +436,16 @@ personal_config.py
 !.gitattributes
 
 # Force include source code
-!src/**/*.py
+!farsi_transcribe/**/*.py
 !tests/**/*.py
 !scripts/**/*.py
 !main.py
 
 # Force include configuration
-!src/**/*.toml
-!src/**/*.yaml
-!src/**/*.yml
-!src/**/*.json
+!farsi_transcribe/**/*.toml
+!farsi_transcribe/**/*.yaml
+!farsi_transcribe/**/*.yml
+!farsi_transcribe/**/*.json
 
 # Force include documentation
 !docs/**/*.md

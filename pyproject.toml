@@ -34,11 +34,12 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
     "openai-whisper>=20231117",
-    "torch>=2.0.0",
-    "torchaudio>=2.0.0",
+    "torch>=2.1.0",
+    "torchaudio>=2.1.0",
+    "torchvision>=0.16.0",
     "numpy>=1.24.0,<2.0",
-    "transformers>=4.30.0",
-    "huggingface-hub>=0.15.0",
+    "transformers>=4.35.0",
+    "huggingface-hub>=0.19.0",
     "requests>=2.28.0",
     "urllib3>=1.26.0",
     "pydub>=0.25.1",
@@ -73,8 +74,8 @@ dev = [
 ]
 
 [project.scripts]
-farsitranscribe = "main:main"
-farsi-transcribe = "main:main"
+farsitranscribe = "farsi_transcribe.cli:main"
+farsi-transcribe = "farsi_transcribe.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/siryoos/FarsiTranscribe"
@@ -84,7 +85,7 @@ Repository = "https://github.com/siryoos/FarsiTranscribe"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "farsi_transcribe*"]
+include = ["farsi_transcribe*"]
 
 [tool.setuptools]
 py-modules = [
@@ -122,6 +123,11 @@ addopts = [
     "--strict-config",
     "--verbose",
     "--tb=short",
+    "--disable-warnings",
+    "--cov=farsi_transcribe",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

@@ -18,7 +18,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/siryoos/FarsiTranscribe",
-    packages=find_packages(include=["src*", "farsi_transcribe*"]),
+    packages=find_packages(include=["farsi_transcribe*"]),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
@@ -37,11 +37,12 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "openai-whisper>=20231117",
-        "torch>=2.0.0",
-        "torchaudio>=2.0.0",
-        "numpy>=1.24.0",
-        "transformers>=4.30.0",
-        "huggingface-hub>=0.15.0",
+        "torch>=2.1.0",
+        "torchaudio>=2.1.0",
+        "torchvision>=0.16.0",
+        "numpy>=1.24.0,<2.0",
+        "transformers>=4.35.0",
+        "huggingface-hub>=0.19.0",
         "requests>=2.28.0",
         "urllib3>=1.26.0",
         "pydub>=0.25.1",
@@ -64,8 +65,8 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "farsi-transcribe=main:main",
-            "farsitranscribe=main:main",
+            "farsi-transcribe=farsi_transcribe.cli:main",
+            "farsitranscribe=farsi_transcribe.cli:main",
         ],
     },
     include_package_data=True,

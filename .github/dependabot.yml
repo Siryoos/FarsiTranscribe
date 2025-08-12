@@ -1,49 +1,47 @@
-# version: 2
-# updates:
-#   # Python dependencies
-#   - package-ecosystem: "pip"
-#     directory: "/"
-#     schedule:
-#       interval: "weekly"
-#       day: "monday"
-#       time: "04:00"
-#     open-pull-requests-limit: 10
-#     reviewers:
-#       - "siryoos"
-#     labels:
-#       - "dependencies"
-#       - "python"
-#     commit-message:
-#       prefix: "chore"
-#       include: "scope"
-#     groups:
-#       development:
-#         patterns:
-#           - "pytest*"
-#           - "black"
-#           - "flake8*"
-#           - "mypy*"
-#         update-types:
-#           - "minor"
-#           - "patch"
-#       ml-dependencies:
-#         patterns:
-#           - "torch*"
-#           - "transformers"
-#           - "openai-whisper"
-#         update-types:
-#           - "minor"
-#           - "patch"
-          
-#   # GitHub Actions
-#   - package-ecosystem: "github-actions"
-#     directory: "/"
-#     schedule:
-#       interval: "weekly"
-#       day: "monday"
-#       time: "04:00"
-#     labels:
-#       - "dependencies"
-#       - "github-actions"
-#     commit-message:
-#       prefix: "ci"
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "siryoos"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      development:
+        patterns:
+          - "pytest*"
+          - "black"
+          - "flake8*"
+          - "mypy*"
+        update-types:
+          - "minor"
+          - "patch"
+      ml-dependencies:
+        patterns:
+          - "torch*"
+          - "transformers"
+          - "openai-whisper"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"

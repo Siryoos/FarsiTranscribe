@@ -43,9 +43,9 @@ pip install pytest black flake8 mypy
 pytest
 
 # Run linting
-flake8 src/
-black --check src/
-mypy src/
+flake8 farsi_transcribe/
+black --check farsi_transcribe/
+mypy farsi_transcribe/
 ```
 
 ## Testing
@@ -60,7 +60,7 @@ pytest
 pytest tests/test_transcriber.py
 
 # Run with coverage
-pytest --cov=src
+pytest --cov=farsi_transcribe
 ```
 
 ## Code Style

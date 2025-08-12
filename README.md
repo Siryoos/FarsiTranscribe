@@ -129,21 +129,20 @@ python main.py audio.mp3 --quality 95-percent
 ### Python API
 
 ```python
-from src.core.config import TranscriptionConfig, ConfigFactory
-from src import UnifiedAudioTranscriber
+from farsi_transcribe import TranscriptionConfig, FarsiTranscriber, ConfigPresets
 
 # Create configuration with Persian model
-config = ConfigFactory.create_persian_optimized_config()
+config = ConfigPresets.persian_optimized()
 
 # Initialize transcriber
-with UnifiedAudioTranscriber(config) as transcriber:
-    transcription = transcriber.transcribe_file("audio.mp3")
-    print(transcription)
+with FarsiTranscriber(config) as transcriber:
+    result = transcriber.transcribe_file("audio.mp3")
+    print(result.text)
 ```
 
 ## 🏗️ Architecture
 
-FarsiTranscribe follows a clean, modular architecture with consolidated utilities:
+ FarsiTranscribe follows a clean, modular architecture with consolidated utilities:
 
 ### Final Project Structure
 
@@ -152,36 +151,38 @@ FarsiTranscribe/
 ├── main.py                          # Main entry point
 ├── README.md                        # Project documentation
 ├── requirements.txt                 # Python dependencies
-├── setup.py                        # Package setup
-├── pyproject.toml                  # Modern Python project config
-├── pytest.ini                      # Test configuration
-├── Makefile                        # Build automation
-├── src/                            # Core source code
+├── setup.py                         # Package setup
+├── pyproject.toml                   # Modern Python project config
+├── pytest.ini                       # Test configuration
+├── Makefile                         # Build automation
+├── docs/                            # Documentation (moved ancillary docs here)
+├── scripts/                         # Dev/maintenance scripts
+├── farsi_transcribe/                # Core package
 │   ├── __init__.py
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── config.py               # Configuration management
-│   │   ├── transcriber.py          # Main transcription logic
-│   │   └── advanced_transcriber.py # Advanced features
-│   └── utils/                      # Consolidated utility modules
+│   │   ├── config.py                # Configuration management
+│   │   ├── transcriber.py           # Main transcription logic
+│   │   └── advanced_transcriber.py  # Advanced features
+│   └── utils/                       # Consolidated utility modules
 │       ├── __init__.py
-│       ├── unified_audio_preprocessor.py    # Consolidated audio preprocessing
-│       ├── unified_terminal_display.py      # Consolidated terminal display
-│       ├── unified_memory_manager.py        # Consolidated memory management
-│       ├── chunk_calculator.py              # Simple utility
-│       ├── file_manager.py                  # File operations
-│       ├── repetition_detector.py           # Text processing
-│       ├── sentence_extractor.py            # Text processing
-│       ├── advanced_model_ensemble.py       # Specialized ML
-│       ├── speaker_diarization.py           # Specialized audio
-│       ├── quality_assessor.py              # Specialized quality
-│       ├── persian_text_postprocessor.py    # Specialized text
-│       └── preprocessing_validator.py       # Specialized validation
-├── farsi_transcribe/               # Legacy package structure
-├── tests/                          # Test suite
-├── examples/                       # Usage examples
-├── data/                           # Data directory
-└── output/                         # Output directory
+│       ├── unified_audio_preprocessor.py     # Consolidated audio preprocessing
+│       ├── unified_terminal_display.py       # Consolidated terminal display
+│       ├── unified_memory_manager.py         # Consolidated memory management
+│       ├── chunk_calculator.py               # Simple utility
+│       ├── file_manager.py                   # File operations
+│       ├── repetition_detector.py            # Text processing
+│       ├── sentence_extractor.py             # Text processing
+│       ├── advanced_model_ensemble.py        # Specialized ML
+│       ├── speaker_diarization.py            # Specialized audio
+│       ├── quality_assessor.py               # Specialized quality
+│       ├── persian_text_postprocessor.py     # Specialized text
+│       └── preprocessing_validator.py        # Specialized validation
+├── farsi_transcribe/                # Legacy package structure
+├── tests/                           # Test suite
+├── examples/                        # Usage examples
+├── data/                            # Data directory
+└── output/                          # Output directory
 ```
 
 ### Key Components
@@ -246,53 +247,7 @@ transcriber = FarsiTranscriber(config)
 
 ### Unified Utils Usage
 
-#### **Audio Preprocessing**
-```python
-from src.utils import UnifiedAudioPreprocessor, create_unified_preprocessor
-
-# Create preprocessor
-preprocessor = create_unified_preprocessor(config)
-
-# Process audio
-audio_data, metadata = preprocessor.preprocess_audio("audio.mp3")
-
-# Check capabilities
-capabilities = get_unified_preprocessing_capabilities()
-```
-
-#### **Terminal Display**
-```python
-from src.utils import UnifiedTerminalDisplay, create_unified_display
-
-# Create display
-display = create_unified_display()
-
-# Print Persian text
-display.print_persian_preview("سلام دنیا", 1)
-
-# Check capabilities
-capabilities = get_terminal_capabilities()
-```
-
-#### **Memory Management**
-```python
-from src.utils import UnifiedMemoryManager, create_unified_memory_manager
-
-# Create manager
-manager = create_unified_memory_manager(config)
-
-# Monitor performance
-manager.start_performance_monitoring(total_chunks, audio_duration)
-
-# Memory context
-with manager.memory_context():
-    # Memory-intensive operation
-    pass
-
-# Get reports
-memory_report = manager.get_memory_report()
-performance_summary = manager.get_performance_summary()
-```
+The library exposes a simple, object‑oriented API via `FarsiTranscriber`. CLI handles terminal display and progress. Internals like memory management and preprocessing are encapsulated to keep the public API small and DRY.
 
 ### Streaming Large Files
 
@@ -375,12 +330,8 @@ Use `--model` to pass either a Hugging Face model ID (e.g., `nezamisafa/whisper-
 This repo includes a minimal fine‑tuning scaffold. To train on your dataset:
 
 ```bash
-python -m src.training.train_whisper /path/to/data.csv \
-  --data-format csv \
-  --model openai/whisper-small \
-  --language fa \
-  --output-dir ./checkpoints \
-  --max-steps 2000 --batch-size 8 --grad-accum 2 --lr 1e-4 --fp16
+# Example training scripts are not part of the core package to keep it DRY.
+# See wiki/docs for recommendations and external recipes.
 ```
 
 Dataset formats: CSV/TSV/JSONL with `audio_path`, `text` (and optional `speaker_id`, `split`). The output checkpoint can be used with `--model ./checkpoints`.
@@ -426,15 +377,7 @@ class TranscriptionResult:
 
 ### Unified Utils APIs
 
-All unified utils provide backward compatibility:
-
-```python
-# Old imports still work
-from src.utils import AudioPreprocessor, TerminalDisplay, EnhancedMemoryManager
-
-# New unified imports
-from src.utils import UnifiedAudioPreprocessor, UnifiedTerminalDisplay, UnifiedMemoryManager
-```
+The public API is intentionally small. Use `FarsiTranscriber`, `TranscriptionConfig`, and `ConfigPresets`.
 
 ## 🔌 Extending FarsiTranscribe
 

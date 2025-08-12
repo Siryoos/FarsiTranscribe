@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""
-Demo script for FarsiTranscribe - demonstrates actual transcription.
+"""Demo script for FarsiTranscribe.
+
+Uses the public CLI to avoid duplicating logic.
 """
 
-import sys
+import subprocess
 from pathlib import Path
-
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from src import UnifiedAudioTranscriber
-from src.core.config import ConfigFactory
 
 
 def demo_fast_transcription():
@@ -28,55 +23,24 @@ def demo_fast_transcription():
     print(f"📊 File size: {sample_audio.stat().st_size / (1024*1024):.1f} MB")
     
     try:
-        # Create fast configuration
-        config = ConfigFactory.create_fast_config()
-        config.output_directory = "output/demo"
-        config.enable_sentence_preview = True
-        
-        print(f"\n⚙️  Configuration:")
-        print(f"   Model: {config.model_name}")
-        print(f"   Quality: Fast")
-        print(f"   Output: {config.output_directory}")
-        print(f"   Preview: {config.enable_sentence_preview}")
-        
-        print(f"\n🔄 Starting transcription...")
-        print("   (This may take a few minutes for the first run)")
-        
-        # Create output directory
-        Path(config.output_directory).mkdir(parents=True, exist_ok=True)
-        
-        # Run transcription
-        with UnifiedAudioTranscriber(config) as transcriber:
-            result = transcriber.transcribe_file(str(sample_audio))
-            
-            if result:
-                print(f"\n✅ Transcription completed!")
-                print(f"📝 Text length: {len(result)} characters")
-                
-                # Save result
-                output_file = Path(config.output_directory) / "demo_transcription.txt"
-                with open(output_file, 'w', encoding='utf-8') as f:
-                    f.write(result)
-                
-                print(f"💾 Saved to: {output_file}")
-                
-                # Show preview
-                preview_length = min(200, len(result))
-                print(f"\n📖 Preview (first {preview_length} characters):")
-                print("-" * 50)
-                print(result[:preview_length])
-                if len(result) > preview_length:
-                    print("...")
-                
-                return True
-            else:
-                print("❌ No transcription result generated")
-                return False
-                
+        print(f"\n🔄 Starting transcription via CLI...")
+        output_dir = Path("output/demo")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        cmd = [
+            "python",
+            "-m",
+            "farsi_transcribe",
+            str(sample_audio),
+            "--preset",
+            "fast",
+            "--output-dir",
+            str(output_dir),
+        ]
+        subprocess.run(cmd, check=True)
+        return True
     except Exception as e:
         print(f"❌ Transcription failed: {e}")
-        import traceback
-        traceback.print_exc()
         return False
 
 
@@ -90,14 +54,9 @@ def main():
     print()
     
     # Check if we have the required dependencies
-    try:
-        import torch
-        import transformers
-        print("✅ Dependencies: PyTorch and Transformers available")
-    except ImportError as e:
-        print(f"❌ Missing dependency: {e}")
-        print("   Please install requirements: pip install -r requirements.txt")
-        return
+    # Basic dependency hint (do not import heavy libs here)
+    if not (Path("requirements.txt").exists()):
+        print("⚠️  requirements.txt not found; ensure dependencies are installed")
     
     # Run demo
     success = demo_fast_transcription()

@@ -67,7 +67,6 @@ makefile text eol=lf
 *.gif binary
 *.bmp binary
 *.ico binary
-*.svg binary
 *.webp binary
 *.avif binary
 

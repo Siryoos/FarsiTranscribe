@@ -74,8 +74,8 @@ dev = [
 ]
 
 [project.scripts]
-farsitranscribe = "farsi_transcribe.cli:main"
-farsi-transcribe = "farsi_transcribe.cli:main"
+farsitranscribe = "src.core.cli:main"
+farsi-transcribe = "src.core.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/siryoos/FarsiTranscribe"
@@ -85,7 +85,7 @@ Repository = "https://github.com/siryoos/FarsiTranscribe"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["farsi_transcribe*"]
+include = ["src*", "farsi_transcribe*"]
 
 [tool.setuptools]
 py-modules = [

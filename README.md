@@ -158,6 +158,14 @@ config = ConfigFactory.create_persian_optimized_config()
 transcriber = UnifiedTranscriber(config)
 text = transcriber.transcribe_file("audio.mp3")
 ```
+
+### Migrating from legacy to src
+
+- Replace `from farsi_transcribe import TranscriptionConfig, FarsiTranscriber` with:
+  - `from src.core.config import TranscriptionConfig, ConfigFactory`
+  - `from src.core import UnifiedTranscriber`
+- Replace `AudioProcessor`-based manual preprocessing with `UnifiedAudioPreprocessor` from `src.preprocessing` when needed.
+- CLI remains compatible: `python -m farsi_transcribe ...`
 FarsiTranscribe/
 ├── main.py                          # Main entry point
 ├── README.md                        # Project documentation

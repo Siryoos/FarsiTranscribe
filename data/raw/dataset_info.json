@@ -1,5 +1,5 @@
 {
-  "download_date": "2025-08-10 16:03:38",
+  "download_date": "2025-08-12 18:58:02",
   "total_datasets": 3,
   "datasets": {
     "local_sample": {
@@ -12,13 +12,14 @@
       "size_mb": 5
     },
     "common_voice_fa": {
-      "name": "Common Voice Persian (Farsi)",
-      "description": "Mozilla Common Voice dataset for Persian language",
+      "name": "common_voice_fa",
+      "description": "Materialized from snapshot mozilla-foundation/common_voice_17_0 (fa)",
       "license": "CC0-1.0",
       "citation": "Ardila et al. (2020). Common Voice: A Massively-Multilingual Speech Corpus.",
-      "downloaded": false,
-      "path": null,
-      "size_mb": 2500
+      "downloaded": true,
+      "path": "/home/siryoos/projects/FarsiTranscribe/data/raw/common_voice_fa",
+      "size_mb": 2500,
+      "num_items": 0
     },
     "huggingface_fa": {
       "name": "HuggingFace Persian Audio",
